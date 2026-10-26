@@ -1058,7 +1058,9 @@ canvas.addEventListener("pointermove", (e) => {
   rotate((e.clientX - drag.x) * 0.008, (e.clientY - drag.y) * 0.008);
   drag = { x: e.clientX, y: e.clientY };
 });
-canvas.addEventListener("pointerup", () => { drag = null; });
+for (const event of ["pointerup", "pointercancel", "lostpointercapture"]) {
+  canvas.addEventListener(event, () => { drag = null; });
+}
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
   zoom(Math.exp(e.deltaY * 0.001));
