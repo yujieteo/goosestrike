@@ -1029,6 +1029,11 @@ $("speed").oninput = (e) => { st.speed = +e.target.value; showSpeed(); };
 $("speed").onchange = () => { if (st.phase === "idle") preview(); };
 $("fire").onclick = fire;
 $("stop").onclick = stopRun;
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || $("stop").disabled) return;
+  e.preventDefault();
+  stopRun();
+});
 $("wilbeck").onclick = wallCheck;
 $("gif").onclick = exportGif;
 $("mute").onclick = () => {
