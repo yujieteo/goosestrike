@@ -1032,7 +1032,7 @@ $("speedNumber").onchange = (e) => {
   const input = e.target;
   if (!input.checkValidity()) {
     input.value = st.speed.toFixed(2);
-    $("speedEntryStatus").textContent = "Invalid speed. The control kept the previous speed.";
+    $("speedEntryStatus").textContent = `Enter a speed from ${input.min} to ${input.max} m/s in steps of ${input.step} m/s. The control kept the previous speed.`;
     return;
   }
   st.speed = input.valueAsNumber;
