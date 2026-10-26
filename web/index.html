@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Goose Strike</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%AA%BF%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>GOOSE STRIKE <small>Ballistic Waterfowl Laboratory</small></h1>
+  <p class="tag">One 4&nbsp;lb goose. One fuselage panel. 14&nbsp;CFR&nbsp;25.571(e)(1). Explicit dynamics in
+    <a href="https://github.com/aardappel/goose">Goose</a>, compiled to WebAssembly.</p>
+</header>
+
+<main>
+  <section class="stage">
+    <canvas id="view" aria-label="3D view of the goose and the panel"></canvas>
+    <div id="bubble" class="bubble" hidden>HONK!</div>
+    <div id="banner" class="banner"></div>
+    <div class="legend" id="legend"></div>
+    <div class="viewbar">
+      <button id="btnCostume" aria-pressed="true">Goose costume</button>
+      <button id="btnPov" aria-pressed="false">Passenger POV</button>
+      <button id="btnReset">Reset camera</button>
+    </div>
+  </section>
+
+  <section class="controls">
+    <div class="cannon">
+      <button id="fire" class="fire" disabled>LOADING GOOSE…</button>
+      <button id="mute" class="small" aria-pressed="false">🔊 Honks on</button>
+    </div>
+
+    <label class="field">Goose speed <output id="speedOut"></output>
+      <input id="speed" type="range" min="50" max="250" step="0.01">
+    </label>
+    <p class="hint" id="specCheck"></p>
+
+    <fieldset class="presets">
+      <legend>Goose resolution</legend>
+      <div id="presets"></div>
+    </fieldset>
+  </section>
+
+  <section class="telemetry">
+    <h2>Telemetry</h2>
+    <dl id="tele"></dl>
+    <div class="honk">
+      <span>Honk-o-meter (contact force)</span>
+      <div class="meter"><div id="honkBar"></div></div>
+    </div>
+    <div class="energy">
+      <span>Where the goose's 29.4&nbsp;kJ went</span>
+      <div class="ebar" id="ebar"></div>
+      <ul class="ekey" id="ekey"></ul>
+    </div>
+    <canvas id="forceChart" class="chart" aria-label="Contact force against time"></canvas>
+  </section>
+
+  <section class="verdict" id="verdict" hidden></section>
+
+  <section class="wilbeck">
+    <h2>Control experiment: goose vs. infinitely rigid wall</h2>
+    <p>Fire the goose at a rigid wall, and compare the pressure at the impact centre
+      with Wilbeck's two hydrodynamic pressures: the Hugoniot shock pressure
+      P<sub>H</sub> = ρ<sub>0</sub>U<sub>s</sub>v at first contact, and the
+      stagnation pressure P<sub>s</sub> = ½ρ<sub>0</sub>v² in steady flow.</p>
+    <button id="wilbeck" disabled>Run the wall check</button>
+    <p id="wilbeckOut" class="mono"></p>
+    <canvas id="wallChart" class="chart tall" aria-label="Centre pressure against time"></canvas>
+  </section>
+
+  <section class="receipts">
+    <h2>Receipts</h2>
+    <details open>
+      <summary>The rule</summary>
+      <blockquote>“(e) Damage-tolerance (discrete source) evaluation. The airplane must be capable of
+        successfully completing a flight during which likely structural damage occurs as a result of—
+        (1) Impact with a 4-pound bird when the velocity of the airplane relative to the bird along
+        the airplane's flight path is equal to V<sub>C</sub> at sea level or 0.85V<sub>C</sub> at 8,000 feet,
+        whichever is more critical;”</blockquote>
+      <p>14 CFR 25.571(e)(1). Bird mass 4&nbsp;lb = 1.814&nbsp;kg. V<sub>C</sub> = 350&nbsp;KCAS,
+        the lowest value that 25.1505 allows for an aeroplane with V<sub>MO</sub> = 350&nbsp;kt
+        (A320 family, EASA TCDS EASA.A.064). At sea level ISA, 350&nbsp;KCAS = 350&nbsp;KTAS = 180.06&nbsp;m/s.</p>
+    </details>
+    <details>
+      <summary>What is physics and what is costume</summary>
+      <p>The physics bird is the standard substitute bird: a cylinder with hemispherical ends,
+        length/diameter 2, of gelatin with 10&nbsp;% porosity (950&nbsp;kg/m³), with a Tait equation
+        of state for water (c<sub>0</sub> = 1480&nbsp;m/s, γ = 7). The particles carry the physics.
+        The feathers, eyes, beak, wings and blush are paint on those particles. They have no mass.</p>
+      <p>The approach flight before contact is a cartoon. The simulation starts 2&nbsp;mm before contact.</p>
+    </details>
+    <details>
+      <summary>Panel and method</summary>
+      <p>Curved panel, radius 1.975&nbsp;m, 1.067&nbsp;m × 0.760&nbsp;m, clamped edges. Skin 2024-T3,
+        1.6&nbsp;mm. Four Z stringers and two Z frames, 7075-T6. The geometry is a representative
+        assumption, not a drawing of a real aeroplane. Normal impact at mid-bay.</p>
+      <p>Bird: SPH. Panel: Belytschko-Lin-Tsay shells, J2 plasticity, erosion at the failure
+        plastic strain. Contact: penalty. Central differences with a stable time step.
+        All sources and the convergence study are in the
+        <a href="https://github.com/yujieteo/goosestrike#readme">README</a>.</p>
+    </details>
+    <p class="disclaimer">This is not a certification analysis. Residual strength after the strike is
+      not analysed. No real geese were harmed. Several virtual geese were.</p>
+  </section>
+</main>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
