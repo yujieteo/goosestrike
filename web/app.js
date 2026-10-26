@@ -882,16 +882,23 @@ async function exportGif() {
   const b = $("gif");
   b.disabled = true; b.textContent = "Making the GIF…";
   await new Promise((r) => setTimeout(r, 30));      // let the button text show
-  const bytes = g.rec.encode();
-  const url = URL.createObjectURL(new Blob([bytes], { type: "image/gif" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `goosestrike-${g.title.toLowerCase().replace(/ /g, "-")}-${g.speed.toFixed(2)}mps.gif`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
-  if (st.gif === g) {
-    b.textContent = `Export GIF (${fmt(bytes.length / 1e6, 1)} MB)`;
-    b.disabled = false;
+  try {
+    const bytes = g.rec.encode();
+    const url = URL.createObjectURL(new Blob([bytes], { type: "image/gif" }));
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `goosestrike-${g.title.toLowerCase().replace(/ /g, "-")}-${g.speed.toFixed(2)}mps.gif`;
+    a.click();
+    if (st.gif === g) {
+      b.textContent = `Export GIF (${fmt(bytes.length / 1e6, 1)} MB)`;
+      b.disabled = false;
+    }
+  } catch {
+    if (st.gif === g) {
+      b.textContent = "GIF export failed. Retry";
+      b.disabled = false;
+    }
   }
 }
 
