@@ -794,11 +794,12 @@ function frame(now) {
   lastFrame = now;
   let offsetZ = 0, flap = 0;
   const banner = $("banner");
+  let bannerText;
   if (st.phase === "approach") {
     const s = Math.min(1, (now - st.t0) / 1000 / APPROACH_S);
     offsetZ = APPROACH_M * (1 - s);
     flap = reducedMotion.matches ? 0 : Math.sin(now / 70);
-    banner.textContent = `APPROACH: cartoon, not simulated (the real ${fmt(APPROACH_M, 1)} m takes ${fmt(APPROACH_M / st.speed * 1e3, 1)} ms at ${fmt(st.speed, 1)} m/s)`;
+    bannerText = `APPROACH: cartoon, not simulated (the real ${fmt(APPROACH_M, 1)} m takes ${fmt(APPROACH_M / st.speed * 1e3, 1)} ms at ${fmt(st.speed, 1)} m/s)`;
     if (s >= 1) st.phase = "sim";
   } else if (st.phase === "sim") {
     stepSolver(T_END, () => {
@@ -813,7 +814,7 @@ function frame(now) {
       const b = $("bubble"); b.hidden = false; b.style.animation = "none"; void b.offsetWidth; b.style.animation = "";
       setTimeout(() => { b.hidden = true; }, 900);
     }
-    banner.textContent = `SIMULATING in Goose → WebAssembly · t = ${fmt(eng.time() * 1e6, 0)} µs of ${fmt(T_END * 1e6, 0)} µs · goose is now a fluid`;
+    bannerText = `SIMULATING in Goose → WebAssembly · t = ${fmt(eng.time() * 1e6, 0)} µs of ${fmt(T_END * 1e6, 0)} µs · goose is now a fluid`;
     telemetry();
     drawForceChart();
     if (eng.time() >= T_END) {
@@ -823,12 +824,13 @@ function frame(now) {
     stepSolver(1.5 * st.wall.tl, wallSample);
     readState();
     telemetry();
-    banner.textContent = `CONTROL EXPERIMENT: goose vs. rigid wall · ${fmt(eng.time() * 1e6, 0)} µs · colour = pressure`;
+    bannerText = `CONTROL EXPERIMENT: goose vs. rigid wall · ${fmt(eng.time() * 1e6, 0)} µs · colour = pressure`;
     drawWallChart();
     if (eng.time() >= 1.5 * st.wall.tl) { st.phase = "done"; st.solverPhase = -1; st.gifHold = true; setBusy(false); }
   } else if (st.phase === "done") {
-    banner.textContent = "Done. Drag to orbit. Scroll to zoom. Fire again for another goose.";
+    bannerText = "Done. Drag to orbit. Scroll to zoom. Fire again for another goose.";
   }
+  if (bannerText !== undefined && banner.textContent !== bannerText) banner.textContent = bannerText;
   if (st.nodes) render(offsetZ, flap);
   captureGif(now);
   codeView(now);
