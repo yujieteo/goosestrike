@@ -939,7 +939,9 @@ function buildPresets() {
 function preview() {
   setupRun(0);
   st.phase = "idle";
+  $("verdict").hidden = true;
   telemetry();
+  drawForceChart();
   $("banner").textContent = "Goose loaded. Goose is unaware. Press FIRE.";
 }
 
