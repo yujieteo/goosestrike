@@ -624,12 +624,14 @@ function fire() {
 }
 
 function setBusy(b) {
+  const focusStop = b && (document.activeElement === $("fire") || document.activeElement === $("wilbeck"));
   $("fire").disabled = b;
   $("wilbeck").disabled = b;
   $("stop").disabled = !b;
   $("gif").disabled = b || !st.gif;
   $("fire").textContent = b ? "GOOSE IN FLIGHT" : "FIRE THE GOOSE";
   for (const el of document.querySelectorAll("#presets input, #speed, #speedNumber, #snap")) el.disabled = b;
+  if (focusStop) $("stop").focus({ preventScroll: true });
 }
 
 function stopRun() {
