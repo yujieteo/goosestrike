@@ -923,7 +923,11 @@ function showSpeed() {
     ? "On spec: 4 lb at V<sub>C</sub> = 350 KCAS, sea level. 14 CFR 25.571(e)(1)."
     : `Off spec: the rule asks for V<sub>C</sub> = ${fmt(V_C, 2)} m/s. <a href="#" id="snap">Snap to V<sub>C</sub></a>. Science continues anyway.`;
   const snap = $("snap");
-  if (snap) snap.onclick = (e) => { e.preventDefault(); st.speed = V_C; $("speed").value = V_C; showSpeed(); };
+  if (snap) snap.onclick = (e) => {
+    e.preventDefault();
+    st.speed = V_C; $("speed").value = V_C; showSpeed();
+    if (st.phase === "idle") preview();
+  };
 }
 
 function buildPresets() {
@@ -947,6 +951,8 @@ function preview() {
 
 $("speed").value = V_C;
 $("speed").oninput = (e) => { st.speed = +e.target.value; showSpeed(); };
+// Update the idle preview on release, so a drag does not repeat solver setup.
+$("speed").onchange = () => { if (st.phase === "idle") preview(); };
 $("fire").onclick = fire;
 $("wilbeck").onclick = wallCheck;
 $("gif").onclick = exportGif;
