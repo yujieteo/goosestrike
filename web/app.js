@@ -1104,7 +1104,7 @@ for (const event of ["pointerup", "pointercancel", "lostpointercapture"]) {
   canvas.addEventListener(event, (e) => { if (drag?.pointerId === e.pointerId) drag = null; });
 }
 canvas.addEventListener("wheel", (e) => {
-  if (st.pov) return;
+  if (st.pov || e.ctrlKey || e.metaKey) return;
   e.preventDefault();
   zoom(Math.exp(e.deltaY * 0.001));
 }, { passive: false });
