@@ -200,6 +200,8 @@ The tests (`test/strike.test.mjs`) load the committed `web/strike.wasm` in Node 
 - the panel energy balance (within 1 %), the panel mass, and that a new set-up gives the same result,
 - that the phases one at a time (`step_phase`) give the same result as whole steps (`advance`).
 
+`test/gif.test.mjs` checks that the GIF palette keeps a colour ramp next to a large light background.
+
 CI runs the same tests on each push.
 
 ## Sources
