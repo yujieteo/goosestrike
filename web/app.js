@@ -873,7 +873,9 @@ function captureGif(now) {
   const css = getComputedStyle(document.body);
   c.fillStyle = css.getPropertyValue("--stage");
   c.fillRect(0, 0, GIF_W, g.h);
-  c.drawImage(canvas, 0, 0, GIF_W, g.h);
+  const scale = Math.min(GIF_W / canvas.width, g.h / canvas.height);
+  const w = canvas.width * scale, h = canvas.height * scale;
+  c.drawImage(canvas, (GIF_W - w) / 2, (g.h - h) / 2, w, h);
   // the caption: what it is, the time, and the colour bar with its numbers
   c.fillStyle = css.getPropertyValue("--bg");
   c.fillRect(0, g.h, GIF_W, 28);
