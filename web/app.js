@@ -1068,9 +1068,14 @@ $("btnZoomIn").onclick = () => zoom(1 / 1.2);
 $("btnZoomOut").onclick = () => zoom(1.2);
 
 function showZoom() {
+  const focused = document.activeElement;
+  const zoomIn = $("btnZoomIn"), zoomOut = $("btnZoomOut");
   canvas.style.touchAction = st.pov ? "pan-y pinch-zoom" : "pinch-zoom";
-  $("btnZoomIn").disabled = st.pov || st.dist <= 0.4;
-  $("btnZoomOut").disabled = st.pov || st.dist >= 5;
+  zoomIn.disabled = st.pov || st.dist <= 0.4;
+  zoomOut.disabled = st.pov || st.dist >= 5;
+  if ((focused === zoomIn || focused === zoomOut) && focused.disabled) {
+    canvas.focus({ preventScroll: true });
+  }
 }
 
 function zoom(factor) {
