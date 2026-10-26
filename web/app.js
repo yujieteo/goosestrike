@@ -439,6 +439,7 @@ function blob(pts) {
 // body toward the beak, v toward the back. Thus they keep their shape from
 // all sides. Sizes are in bird diameters.
 function decorations(offsetZ, flap) {
+  const now = reducedMotion.matches ? 0 : performance.now();
   const A = st.anchors, D = eng.birdD(), P = st.parts;
   const wp = (i) => [P[3 * i], P[3 * i + 1], P[3 * i + 2] + offsetZ];
   const pt = (w) => { const o = [0, 0, 0]; proj(w[0], w[1], w[2], o, 0); return o; };
@@ -464,7 +465,7 @@ function decorations(offsetZ, flap) {
   // wings: soft feathers on the sides, flapping in the approach, limp after it
   for (const i of A.wings) {
     const c = sp(i), k = scale(c[2]);
-    const up = dizzy ? -0.05 + 0.03 * Math.sin(performance.now() / 40) : 0.25 + 0.2 * flap;
+    const up = dizzy ? -0.05 + 0.03 * Math.sin(now / 40) : 0.25 + 0.2 * flap;
     part(c, feather, [at(c, k, 0.18, 0.02), at(c, k, -0.2, 0.12 + up), at(c, k, -0.5, 0.1 + 0.8 * up), at(c, k, -0.3, -0.12)], -0.03);
   }
   // a tuft of feathers on the head
@@ -503,7 +504,7 @@ function decorations(offsetZ, flap) {
         ctx.beginPath(); ctx.arc(c[0], c[1], rr * 0.82, 0, 2 * Math.PI); ctx.fill();
         ctx.strokeStyle = GOOSE.ink; ctx.lineWidth = Math.max(DPR, 0.16 * rr);
         ctx.beginPath();
-        const turn = performance.now() / 120;
+        const turn = now / 120;
         for (let k = 0; k <= 40; k++) {
           const a = turn + k * 0.45, q = rr * 0.7 * k / 40;
           const x = c[0] + q * Math.cos(a), y = c[1] + q * Math.sin(a);
@@ -524,7 +525,7 @@ function drawStars(offsetZ) {
   let cx = 0, cy = 0, cz = 0;
   for (let i = 0; i < np; i++) { cx += P[3 * i]; cy += P[3 * i + 1]; cz += P[3 * i + 2]; }
   cx /= np; cy /= np; cz /= np;
-  const D = eng.birdD(), t = performance.now() / 500, o = [0, 0, 0];
+  const D = eng.birdD(), t = reducedMotion.matches ? 0 : performance.now() / 500, o = [0, 0, 0];
   for (let k = 0; k < 3; k++) {
     const a = t + k * 2.094;
     proj(cx + 0.6 * D * Math.cos(a), cy + 0.9 * D, cz + offsetZ + 0.6 * D * Math.sin(a), o, 0);
