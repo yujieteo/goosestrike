@@ -968,7 +968,7 @@ function codeView(now) {
   const k = st.phase === "sim" || st.phase === "wall" ? st.solverPhase : -1;
   code.chips.forEach((b, i) => b.classList.toggle("on", i === k));
   // the source pane moves at most once a second, so that the eye can follow
-  const sourceFocused = document.activeElement === $("code") || document.activeElement === $("step");
+  const sourceFocused = document.activeElement === $("code") || document.activeElement === $("step") || code.chips.includes(document.activeElement);
   if (!sourceFocused && k >= 0 && k !== code.scrolledK && now - code.scrolled > 1000) {
     scrollCode(k); code.scrolled = now; code.scrolledK = k;
   }
