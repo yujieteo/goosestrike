@@ -75,6 +75,8 @@ var mode: i64 = 0;          // 0: panel, 1: rigid wall at z = 0
 var sim_time: f64 = 0.0;
 var dt: f64 = 0.0;
 var dt_prev: f64 = 0.0;
+var dtm: f64 = 0.0;         // the mean of dt and dt_prev
+var next_phase: i64 = 0;    // the phase of the step that step_phase runs next
 var nsteps: i64 = 0;
 var t_contact: f64 = -1.0;
 
@@ -352,7 +354,7 @@ export fn setup(m: i32, cells: i32, spacing: f64, speed: f64) -> i32 {
         mat_epf[k] = eu - mat_su[k] / mat_e[k];
     }
     mode = m;
-    sim_time = 0.0; dt = 0.0; dt_prev = 0.0; nsteps = 0; t_contact = -1.0;
+    sim_time = 0.0; dt = 0.0; dt_prev = 0.0; dtm = 0.0; next_phase = 0; nsteps = 0; t_contact = -1.0;
     contact_fz = 0.0; center_fz = 0.0; impulse = 0.0; panel_work = 0.0;
     hg_work = 0.0; bird_work = 0.0;
     n_failed = 0; n_failed_skin = 0; max_ep = 0.0; max_defl = 0.0;
@@ -849,15 +851,9 @@ fn stable_dt() -> f64 {
     return d;
 }
 
-fn step_once() {
-    dt = stable_dt();
-    // central differences: forces at x(n) from v(n - 1/2)
-    let dtm = if nsteps == 0 { dt } else { 0.5 * (dt + dt_prev) };
-    sph_forces();
-    if mode == 0 { shell_forces(dtm); }
-    contact(dt);
-    if contact_fz > 0.0 && t_contact < 0.0 { t_contact = sim_time; }
-    impulse += contact_fz * dt;
+// Central differences: velocities from v(n - 1/2) to v(n + 1/2), then
+// positions to x(n + 1), and the time.
+fn integrate() {
     // particles
     let ipm = 1.0 / pm;
     for i in 0..np {
@@ -905,6 +901,30 @@ fn step_once() {
     nsteps += 1;
 }
 
+// One phase of a time step. step_once runs the five in sequence. The page
+// runs them one at a time with step_phase, to show which one runs.
+fn run_phase(k: i64) {
+    if k == 0 {
+        dt = stable_dt();
+        // central differences: forces at x(n) from v(n - 1/2)
+        dtm = if nsteps == 0 { dt } else { 0.5 * (dt + dt_prev) };
+    } else if k == 1 {
+        sph_forces();
+    } else if k == 2 {
+        if mode == 0 { shell_forces(dtm); }
+    } else if k == 3 {
+        contact(dt);
+        if contact_fz > 0.0 && t_contact < 0.0 { t_contact = sim_time; }
+        impulse += contact_fz * dt;
+    } else {
+        integrate();
+    }
+}
+
+fn step_once() {
+    for k in 0..5 { run_phase(k); }
+}
+
 // Advances by up to `steps` steps, stopping at `t_end` (s).
 export fn advance(steps: i32, t_end: f64) -> i32 {
     var done: i32 = 0;
@@ -913,6 +933,16 @@ export fn advance(steps: i32, t_end: f64) -> i32 {
         done += 1;
     }
     return done;
+}
+
+// Runs the next phase of the current step and returns its number, or -1
+// when the step would start at or after `t_end` (s).
+export fn step_phase(t_end: f64) -> i32 {
+    if next_phase == 0 && sim_time >= t_end { return -1; }
+    let k = next_phase;
+    run_phase(k);
+    next_phase = (k + 1) % 5;
+    return k as i32;
 }
 
 // ---------------------------------------------------------------------------

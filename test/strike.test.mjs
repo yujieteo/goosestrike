@@ -9,10 +9,17 @@ import { loadEngine, hugoniot, stagnation, V_C, BIRD_MASS } from "../web/engine.
 const eng = await loadEngine();
 const ke0 = 0.5 * BIRD_MASS * V_C * V_C;
 
-test("web/strike.wasm is built from the current sim/strike.goose", () => {
-  const src = readFileSync(new URL("../sim/strike.goose", import.meta.url));
-  const built = readFileSync(new URL("../web/strike.goose.sha256", import.meta.url), "utf8").trim();
-  assert.equal(createHash("sha256").update(src).digest("hex"), built, "run ./build.sh");
+test("gen/ and web/strike.wasm are built from the current sim/strike.goose", () => {
+  // build.sh writes the sums when it generates the C and builds the wasm
+  const sums = readFileSync(new URL("../gen/sha256sums", import.meta.url), "utf8").trim().split("\n");
+  assert.deepEqual(sums.map((l) => l.split(/\s+/)[1]), ["sim/strike.goose", "gen/strike.c", "gen/strike.h", "web/strike.wasm"]);
+  for (const l of sums) {
+    const [sum, path] = l.split(/\s+/);
+    assert.equal(createHash("sha256").update(readFileSync(new URL(`../${path}`, import.meta.url))).digest("hex"), sum, `${path}: run ./build.sh`);
+  }
+  // and copies the source for the code view of the page
+  const src = readFileSync(new URL("../sim/strike.goose", import.meta.url), "utf8");
+  assert.ok(src === readFileSync(new URL("../web/strike.goose", import.meta.url), "utf8"), "web/strike.goose: run ./build.sh");
 });
 
 test("the load case is 4 lb at 350 kt", () => {
@@ -58,4 +65,13 @@ test("panel: stable, energy balance within 1 %, and set-up resets the state", ()
   const b = run();
   assert.equal(b.defl, a.defl);
   assert.equal(b.steps, a.steps);
+});
+
+test("the phases one at a time give the same result as whole steps", () => {
+  const run = (phased) => {
+    eng.setup(0, 56, 0.009, V_C);
+    if (phased) { while (eng.stepPhase(2e-4) >= 0); } else { while (eng.time() < 2e-4) eng.advance(10, 2e-4); }
+    return [eng.steps(), eng.maxDeflection(), eng.panelWork(), eng.birdWork(), eng.contactForce()];
+  };
+  assert.deepEqual(run(true), run(false));
 });

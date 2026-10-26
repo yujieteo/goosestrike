@@ -5,16 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Goose Strike</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%AA%BF%3C/text%3E%3C/svg%3E">
+<link rel="preload" href="fonts/source-serif-4.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/dm-sans.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <h1>GOOSE STRIKE <small>Ballistic Waterfowl Laboratory</small></h1>
-  <p class="tag">One 4&nbsp;lb goose. One fuselage panel. 14&nbsp;CFR&nbsp;25.571(e)(1). Explicit dynamics in
+<header class="wrap">
+  <span class="kind">Experiment · Ballistic Waterfowl Laboratory</span>
+  <h1>Goose strike</h1>
+  <p class="lede">One 4&nbsp;lb goose. One fuselage panel. 14&nbsp;CFR&nbsp;25.571(e)(1). Explicit dynamics in
     <a href="https://github.com/aardappel/goose">Goose</a>, compiled to WebAssembly.</p>
 </header>
 
-<main>
+<main class="wrap">
   <section class="stage">
     <canvas id="view" aria-label="3D view of the goose and the panel"></canvas>
     <div id="bubble" class="bubble" hidden>HONK!</div>
@@ -27,11 +30,13 @@
     </div>
   </section>
 
+
   <section class="controls">
     <div class="cannon">
       <button id="fire" class="fire" disabled>LOADING GOOSE…</button>
       <button id="mute" class="small" aria-pressed="false">🔊 Honks on</button>
     </div>
+    <button id="gif" class="wide" disabled>Export GIF</button>
 
     <label class="field">Goose speed <output id="speedOut"></output>
       <input id="speed" type="range" min="50" max="250" step="0.01">
@@ -57,6 +62,19 @@
       <ul class="ekey" id="ekey"></ul>
     </div>
     <canvas id="forceChart" class="chart" aria-label="Contact force against time"></canvas>
+  </section>
+
+  <section class="code">
+    <h2>The Goose code that runs</h2>
+    <p class="hint">The page runs each time step of <code>sim/strike.goose</code> in five phases, one call to
+      <code>step_phase</code> each. The lit lines are the phase that ran last, as the solver reports it.
+      The percentages are the share of the solver time in each phase in this run. <span id="codeState"></span></p>
+    <ol class="phases" id="phases"></ol>
+    <div class="panes">
+      <pre id="step" class="source short" aria-label="run_phase in sim/strike.goose"></pre>
+      <pre id="code" class="source" aria-label="Source of sim/strike.goose"></pre>
+    </div>
+    <label class="hint"><input type="checkbox" id="follow" checked> Scroll the source to the phase that runs</label>
   </section>
 
   <section class="verdict" id="verdict" hidden></section>

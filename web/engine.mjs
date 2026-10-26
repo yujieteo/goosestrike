@@ -25,6 +25,9 @@ export async function loadEngine() {
     // panel (multiple of 8). spacing: bird particle lattice, m.
     setup: (mode, cells, spacing, speed) => m._setup(mode, cells, spacing, speed),
     advance: (steps, tEnd) => m._advance(steps, tEnd),
+    // runs the next phase of the step (see run_phase in strike.goose) and
+    // returns its number, or -1 at tEnd
+    stepPhase: (tEnd) => m._step_phase(tEnd),
     time: () => m._get_time(),
     dt: () => m._get_dt(),
     steps: () => m._get_steps(),

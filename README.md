@@ -2,7 +2,7 @@
 
 A 4 lb bird hits a stiffened aluminium fuselage panel at V<sub>C</sub>, the load case of 14 CFR 25.571(e)(1).
 The solver is explicit dynamics, written in [Goose](https://github.com/aardappel/goose), compiled through C to WebAssembly.
-It runs in a browser page that shows the bird as a cartoon goose.
+It runs in a browser page that shows the bird as a cartoon goose, shows the Goose code that runs, and exports the strike as an animated GIF.
 
 ![The goose hits the panel](docs/strike.png)
 
@@ -43,7 +43,7 @@ The cartoon goose is only paint on it.
 | Material | gelatin with 10 % porosity, 950 kg/m³ | Perdikoulis et al. 2021, after Barber et al. |
 | Equation of state | Tait for water: p = (ρ<sub>0</sub>c<sub>0</sub>²/γ)((ρ/ρ<sub>0</sub>)<sup>γ</sup> − 1), c<sub>0</sub> = 1480 m/s, γ = 7, no tension (p ≥ 0) | Heimbs 2011 |
 
-The costume (white feathers, eyes, beak, wings, feet and blush) follows the particles, but it has no mass and no effect on the result.
+The costume (white feathers, eyes, beak, wings, feet, head tuft and blush) follows the particles, but it has no mass and no effect on the result.
 The flight before contact is a cartoon. The simulation starts with the nose 2 mm plus half a particle spacing from the skin.
 
 ## The panel
@@ -137,6 +137,17 @@ The times below are for the wasm in Node 24 on one core of the development machi
 
 The 9 mm mesh is the fast default. The trade: its peak pressure is 43 % low, its plateau is 26 % high, and it shows no skin erosion. But its deflection is within 1.5 % of the 4.5 mm result, and its peak force is 15 % higher.
 
+## The page
+
+- The code view shows `web/strike.goose`, the copy of `sim/strike.goose` that `build.sh` writes.
+  The page runs each time step in five phases, one call of the wasm export `step_phase` each: time step, SPH bird, shells (with plasticity and erosion), contact and integration.
+  `run_phase` in the source has the five phases. The lit lines are the phase that ran last, as `step_phase` returns it, and the page measures the time in each phase.
+  A test checks that the phases one at a time give the same result as whole steps.
+- "Export GIF" saves the last run as an animated GIF, 480 px wide: about ten frames a second of the approach, then one frame each 25 µs of simulated time.
+  Each frame has a caption with the time and the colour bar. The encoder is `web/gif.mjs` (median cut palette, LZW), with no dependency.
+- The colour maps are continuous ramps, interpolated in OKLab: plastic strain on a square-root scale from the bare metal (0 %) to 18 %, so that the first yield shows, and bird pressure on a log scale from 0.1 MPa to 400 MPa.
+- The look (fonts, palette) is that of [teoyujie.org](https://teoyujie.org). The fonts are in `web/fonts/`: Source Serif 4 and DM Sans, with their OFL licences.
+
 ## Goose on WebAssembly
 
 Goose has no wasm port yet (its `docs/design/wasm.md` is a proposal).
@@ -145,7 +156,7 @@ WebAssembly linear memory has no reservation and no guard pages. Emscripten's `m
 
 The handling:
 
-1. The solver keeps all state in static global arrays. The generated C of the time loop (`step_once` and the functions it calls) has no data-stack use. You can check this: `build/strike.c` uses `->top` only in `gs_init_globals`.
+1. The solver keeps all state in static global arrays. The generated C of the time loop (`step_once`, `step_phase` and the functions they call) has no data-stack use. You can check this: in the code of the program, `gen/strike.c` uses `->top` only in `gs_init_globals`.
 2. `gs_init_globals` builds each zeroed global array in a data-stack temporary and copies it. The largest temporary is `esig`, 24000 × 15 × 8 B = 2.88 MB, and each temporary is released before the next one.
 3. Thus `build.sh` sets `GS_STACK_RESERVE` to 4 MiB and the guard gap to 64 KiB. If a later change makes a larger global array, raise the reserve.
 
@@ -160,7 +171,7 @@ git -C ../goose checkout a108677d300cb0e8bbb842c35a353abe67a20c6c
 ( cd ../goose && nix shell nixpkgs#cmake nixpkgs#clang nixpkgs#lld nixpkgs#gnumake --command \
     bash -c 'cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ && cmake --build build -j16' )
 
-# 2. the wasm (web/strike.mjs, web/strike.wasm, web/strike.goose.sha256), with Emscripten 5.0.6
+# 2. the C (gen/), the wasm (web/strike.mjs, web/strike.wasm) and web/strike.goose, with Emscripten 5.0.6
 nix shell nixpkgs#emscripten --command env GOOSE=$PWD/../goose/build/goose ./build.sh
 
 # 3. the native validation program
@@ -171,6 +182,10 @@ build/validate --panel 9000 6000 4500    # the panel
 
 Add `--csv` to `validate` to print the time history.
 
+`gen/strike.c` and `gen/strike.h` are the C that the Goose compiler generates from `sim/strike.goose`. They are C, not C++, and nobody edits them by hand.
+They are in the repository so that you can read the code that Emscripten compiles to `web/strike.wasm`.
+`build.sh` writes them, and writes `gen/sha256sums` with the SHA-256 of `sim/strike.goose`, the C and the wasm.
+
 ## Tests
 
 ```sh
@@ -179,10 +194,11 @@ nix shell nixpkgs#nodejs --command npm test
 
 The tests (`test/strike.test.mjs`) load the committed `web/strike.wasm` in Node and check:
 
-- that the wasm comes from the current `sim/strike.goose` (a SHA-256 that `build.sh` writes),
+- that the C in `gen/` and the wasm come from the current `sim/strike.goose` (the sums in `gen/sha256sums`), and that `web/strike.goose` is the same as `sim/strike.goose`,
 - the load case constants and the Wilbeck reference pressures,
 - the rigid wall impulse (m v within 2 %) and energy balance (within 1 %),
-- the panel energy balance (within 1 %), the panel mass, and that a new set-up gives the same result.
+- the panel energy balance (within 1 %), the panel mass, and that a new set-up gives the same result,
+- that the phases one at a time (`step_phase`) give the same result as whole steps (`advance`).
 
 CI runs the same tests on each push.
 
@@ -198,4 +214,5 @@ CI runs the same tests on each push.
 ## Licence
 
 MIT (see `LICENSE`), for the code of this repository.
-Goose is Apache-2.0. This repository does not include Goose source, but the generated `web/strike.wasm` contains the Goose runtime that the compiler puts in its output. Thus `web/GOOSE-LICENSE.txt` has the Goose licence.
+Goose is Apache-2.0. This repository does not include Goose source, but the generated `gen/strike.c` and `web/strike.wasm` contain the Goose runtime that the compiler puts in its output. Thus `web/GOOSE-LICENSE.txt` has the Goose licence.
+The fonts in `web/fonts/` are under the SIL Open Font License (the `-OFL.txt` files).
