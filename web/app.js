@@ -760,9 +760,12 @@ function frame(now) {
     banner.textContent = `APPROACH: cartoon, not simulated (the real ${fmt(APPROACH_M, 1)} m takes ${fmt(APPROACH_M / st.speed * 1e3, 1)} ms at ${fmt(st.speed, 1)} m/s)`;
     if (s >= 1) st.phase = "sim";
   } else if (st.phase === "sim") {
-    stepSolver(T_END, () => { st.peakF = Math.max(st.peakF, eng.contactForce()); });
+    stepSolver(T_END, () => {
+      const f = eng.contactForce();
+      st.peakF = Math.max(st.peakF, f);
+      st.hist.push({ t: eng.time(), f });
+    });
     readState();
-    st.hist.push({ t: eng.time(), f: eng.contactForce() });
     if (eng.tContact() >= 0 && !st.splatted) {
       st.splatted = true;
       splat(); honk(1.35); honk(1.5, 0.18);
