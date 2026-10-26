@@ -990,8 +990,8 @@ function codeView(now) {
   }
   if (k === code.shown) return;
   code.chips.forEach((b, i) => b.classList.toggle("on", i === k));
-  for (const l of code.lines) l.classList.remove("on");
-  for (const l of code.step.lines) l.classList.remove("on");
+  for (const l of $("code").querySelectorAll(".on")) l.classList.remove("on");
+  for (const l of $("step").querySelectorAll(".on")) l.classList.remove("on");
   if (k >= 0) {
     for (const [a, b] of code.ranges[k]) for (let i = a; i <= b; i++) code.lines[i].classList.add("on");
     const [a, b] = code.ranges[k][0];
