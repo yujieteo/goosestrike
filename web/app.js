@@ -646,7 +646,9 @@ function stopRun() {
   st.gifHold = false;
   $("bubble").hidden = true;
   preview();
+  const focusFire = document.activeElement === $("stop");
   setBusy(false);
+  if (focusFire) $("fire").focus({ preventScroll: true });
   $("banner").textContent = "Run stopped. Goose reset. Select a speed or resolution, then press FIRE.";
 }
 
