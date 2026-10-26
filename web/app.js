@@ -1000,7 +1000,9 @@ function showSpeed() {
     : `Off spec: the rule asks for V<sub>C</sub> = ${fmt(V_C, 2)} m/s. <button type="button" id="snap">Snap to V<sub>C</sub></button>. Science continues anyway.`;
   const snap = $("snap");
   if (snap) snap.onclick = () => {
+    const focusSpeed = document.activeElement === snap;
     st.speed = V_C; $("speed").value = V_C; showSpeed();
+    if (focusSpeed) $("speedNumber").focus({ preventScroll: true });
     if (st.phase === "idle") preview();
   };
 }
