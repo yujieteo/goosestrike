@@ -1104,7 +1104,9 @@ canvas.addEventListener("wheel", (e) => {
   zoom(Math.exp(e.deltaY * 0.001));
 }, { passive: false });
 
-loadCode();
+loadCode().catch(() => {
+  $("codeState").textContent = "The source code could not load. The solver can still run. Reload the page to try again.";
+});
 showSpeed();
 showMute();
 buildPresets();
