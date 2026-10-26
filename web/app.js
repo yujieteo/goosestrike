@@ -1,5 +1,6 @@
 // The page: runs the Goose solver (WebAssembly) frame by frame and draws it.
 import { loadEngine, hugoniot, stagnation, V_C, BIRD_MASS } from "./engine.mjs";
+import { GifRecorder } from "./gif.mjs";
 
 const KT = 1852 / 3600;            // m/s per knot
 const T_END = 3.0e-3;              // panel run length, s
@@ -8,7 +9,8 @@ const APPROACH_S = 1.6;            // cartoon approach, real seconds
 const APPROACH_M = 1.2;            // cartoon approach distance, m
 const P_LO = 1e5, P_HI = 4e8;      // pressure colour scale, Pa (log)
 const EP_MAX = 0.18;               // plastic strain colour scale
-const EP_SHOW = 0.002;             // below 0.2 % plastic strain, bare metal colour
+const GIF_W = 480;                 // GIF width, px
+const GIF_SIM_US = 25;             // sim time between GIF frames, µs
 
 // Bird lattice and skin cells per preset, and what validate.goose measured
 // with them natively (rigid wall check and the panel at V_C).
@@ -45,6 +47,9 @@ const st = {
   wall: null,
   frameSim: 0, frameReal: 16.7, msPerStep: 0,
   splatted: false,
+  solverPhase: -1,        // the solver phase that ran last (run_phase in strike.goose)
+  gif: null,              // the GIF recorder of the last run
+  gifHold: false,         // the run ended: the next GIF frame is the last
 };
 
 try { st.muted = localStorage.getItem("goosestrike-muted") === "1"; } catch { /* no storage */ }
@@ -114,8 +119,14 @@ function nearest(px, x, y, z) {
   return best;
 }
 
-// Costume: a white cartoon goose painted on the capsule. The capsule flies
-// toward -z, so the head is at the low-z end; +y is the goose's back.
+// Costume: a cartoon goose painted on the capsule. The capsule flies toward
+// -z, so the head is at the low-z end, and +y is the goose's back. All the
+// paint uses the one palette GOOSE: soft round shapes with one ink outline.
+const GOOSE = {
+  belly: [252, 250, 244], back: [234, 228, 216],   // feathers, belly to back
+  orange: "#e8913a", ink: "#2b2925", blush: "rgba(226, 120, 110, 0.5)", star: "#e9b640",
+};
+
 function paintGoose() {
   const p = st.init, n = p.length / 3;
   const D = eng.birdD(), L = eng.birdL(), r = 0.5 * D;
@@ -123,21 +134,22 @@ function paintGoose() {
   for (let i = 0; i < n; i++) { zmin = Math.min(zmin, p[3 * i + 2]); zmax = Math.max(zmax, p[3 * i + 2]); }
   const head = zmin + r;              // centre of the front hemisphere
   const mid = zmin + 0.5 * L;
+  // feathers: a smooth blend from the belly to the back, in 32 tones
   st.skin = new Array(n);
   for (let i = 0; i < n; i++) {
-    const y = p[3 * i + 1] / r, u = (p[3 * i + 2] - zmin) / L;
-    let c = "#f7f5ef";                                  // white feathers
-    if (u > 0.35 && y > 0.25) c = "#dcd8cf";            // a grey back
-    if (u > 0.88) c = "#ecebe6";                        // a fluffy tail
-    if (u < 0.32 && y < -0.35) c = "#fffdf8";           // a bright neck
-    st.skin[i] = c;
+    const y = p[3 * i + 1] / r;
+    const s = Math.round(32 * smoothstep(-0.6, 1.2, y)) / 32;
+    st.skin[i] = rgb(GOOSE.belly.map((c, k) => c + s * (GOOSE.back[k] - c)));
   }
+  // a point on the front hemisphere in the direction (x, y, -z)
+  const onHead = (x, y, z) => { const d = norm([x, y, -z]); return nearest(p, r * d[0], r * d[1], head + r * d[2]); };
   st.anchors = {
-    nose: nearest(p, 0, -0.1 * r, zmin),
-    eyes: [nearest(p, 0.6 * r, 0.6 * r, head), nearest(p, -0.6 * r, 0.6 * r, head)],
-    cheeks: [nearest(p, 0.85 * r, 0.1 * r, head + 0.2 * r), nearest(p, -0.85 * r, 0.1 * r, head + 0.2 * r)],
-    wings: [nearest(p, 0.6 * r, 0.75 * r, mid + 0.3 * r), nearest(p, -0.6 * r, 0.75 * r, mid + 0.3 * r)],
-    feet: [nearest(p, 0.4 * r, -r, mid + 0.2 * r), nearest(p, -0.4 * r, -r, mid + 0.2 * r)],
+    nose: onHead(0, -0.1, 1),
+    eyes: [onHead(0.5, 0.42, 0.75), onHead(-0.5, 0.42, 0.75)],
+    cheeks: [onHead(0.72, 0.02, 0.62), onHead(-0.72, 0.02, 0.62)],
+    tuft: onHead(0, 0.95, 0.3),
+    wings: [nearest(p, 0.92 * r, 0.3 * r, mid + 0.25 * r), nearest(p, -0.92 * r, 0.3 * r, mid + 0.25 * r)],
+    feet: [nearest(p, 0.4 * r, -0.92 * r, mid + 0.3 * r), nearest(p, -0.4 * r, -0.92 * r, mid + 0.3 * r)],
     tail: nearest(p, 0, 0, zmax),
   };
 }
@@ -160,6 +172,7 @@ function setupRun(mode) {
   st.peakF = 0;
   st.hist = [];
   st.splatted = false;
+  st.solverPhase = -1;
   paintGoose();
 }
 
@@ -236,18 +249,67 @@ function grow(n) {
   if (keys.length < n) { keys = new Float32Array(n); order = new Int32Array(n); tmp = new Int32Array(n); }
 }
 
-function pressureColour(p) {
-  const s = Math.max(0, Math.min(1, (Math.log10(Math.max(p, P_LO)) - Math.log10(P_LO)) / (Math.log10(P_HI) - Math.log10(P_LO))));
-  return `hsl(${230 - 230 * s} 85% ${40 + 22 * s}%)`;
+// Colour maps: smooth ramps, interpolated in OKLab between the stops, in
+// 256 levels. The strain map starts at the colour of the bare metal (the
+// primer inside), so the colour moves smoothly from zero plastic strain.
+function smoothstep(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
+function rgb(c) { return `rgb(${Math.round(c[0])} ${Math.round(c[1])} ${Math.round(c[2])})`; }
+
+function toLab(hex) {
+  const l = [1, 3, 5].map((k) => { const v = parseInt(hex.slice(k, k + 2), 16) / 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  const m = [0.4122214708 * l[0] + 0.5363325363 * l[1] + 0.0514459929 * l[2],
+    0.2119034982 * l[0] + 0.6806995451 * l[1] + 0.1073969566 * l[2],
+    0.0883024619 * l[0] + 0.2817188376 * l[1] + 0.6299787005 * l[2]].map(Math.cbrt);
+  return [0.2104542553 * m[0] + 0.793617785 * m[1] - 0.0040720468 * m[2],
+    1.9779984951 * m[0] - 2.428592205 * m[1] + 0.4505937099 * m[2],
+    0.0259040371 * m[0] + 0.7827717662 * m[1] - 0.808675766 * m[2]];
 }
 
-function strainColour(ep, shade, inside) {
-  const s = Math.min(1, ep / EP_MAX);
-  if (ep < EP_SHOW) {
-    const l = Math.round((inside ? 52 : 74) * shade);
-    return inside ? `hsl(80 30% ${l}%)` : `hsl(210 12% ${l}%)`;   // primer inside, bare metal outside
+function fromLab(c) {
+  const m = [c[0] + 0.3963377774 * c[1] + 0.2158037573 * c[2],
+    c[0] - 0.1055613458 * c[1] - 0.0638541728 * c[2],
+    c[0] - 0.0894841775 * c[1] - 1.291485548 * c[2]].map((v) => v * v * v);
+  const l = [4.0767416621 * m[0] - 3.3077115913 * m[1] + 0.2309699292 * m[2],
+    -1.2684380046 * m[0] + 2.6097574011 * m[1] - 0.3413193965 * m[2],
+    -0.0041960863 * m[0] - 0.7034186147 * m[1] + 1.707614701 * m[2]];
+  return l.map((v) => 255 * Math.max(0, Math.min(1, v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055)));
+}
+
+function ramp(stops) {
+  const lab = stops.map(toLab), out = [];
+  for (let i = 0; i < 256; i++) {
+    const x = (i / 255) * (lab.length - 1), k = Math.min(lab.length - 2, Math.floor(x)), f = x - k;
+    out.push(fromLab(lab[k].map((v, j) => v + f * (lab[k + 1][j] - v))));
   }
-  return `hsl(${50 - 50 * s} 95% ${Math.round((58 - 10 * s) * shade)}%)`;
+  return out;
+}
+
+const HOT = ["#e2b54f", "#c4613f", "#6e2a22"];             // amber, terracotta, oxblood
+const MAPS = {
+  metal: ramp(["#c7c3ba", ...HOT]),                        // the skin outside
+  primer: ramp(["#9da27f", ...HOT]),                       // inside, stringers and frames
+  pressure: ramp(["#243552", "#3f6f86", "#94b49c", "#e8c766", "#c4613f"]),
+};
+const SHADES = 64;
+const mapCache = new Map();
+
+// colour of level s (0 to 1) of a map, darkened by shade (0 to 1)
+function mapColour(name, s, shade = 1) {
+  const i = Math.round(255 * Math.max(0, Math.min(1, s))), j = Math.round(SHADES * shade);
+  const key = name + i * 32 + j;
+  let c = mapCache.get(key);
+  if (!c) { c = rgb(MAPS[name][i].map((v) => v * j / SHADES)); mapCache.set(key, c); }
+  return c;
+}
+
+const logP = (p) => (Math.log10(Math.max(p, P_LO)) - Math.log10(P_LO)) / (Math.log10(P_HI) - Math.log10(P_LO));
+function pressureColour(p) { return mapColour("pressure", logP(p)); }
+// square-root scale, so that the first yield shows: 2 % and 8 % are at 1/3 and 2/3
+function strainColour(ep, shade, inside) { return mapColour(inside ? "primer" : "metal", Math.sqrt(ep / EP_MAX), shade); }
+
+// a CSS gradient of a map, for the legend
+function cssRamp(name) {
+  return `linear-gradient(90deg, ${Array.from({ length: 17 }, (_, k) => mapColour(name, k / 16)).join(",")})`;
 }
 
 function render(offsetZ, flap) {
@@ -304,7 +366,7 @@ function drawShell(e) {
   const nrm = norm(cross(r1, r2));
   const toEye = norm([cam.eye[0] - P[3 * a], cam.eye[1] - P[3 * a + 1], cam.eye[2] - P[3 * a + 2]]);
   const facing = nrm[0] * toEye[0] + nrm[1] * toEye[1] + nrm[2] * toEye[2];
-  const shade = 0.55 + 0.45 * Math.abs(facing);
+  const shade = 0.72 + 0.28 * Math.abs(facing);
   const inside = e >= st.skinNe || facing < 0;
   ctx.fillStyle = strainColour(st.strain[e], shade, inside);
   ctx.strokeStyle = ctx.fillStyle;
@@ -338,86 +400,95 @@ function contactStarted() { return eng.tContact() >= 0 && st.phase !== "approach
 // screen position and depth of particle i
 function sp(i) { return [sParts[3 * i], sParts[3 * i + 1], sParts[3 * i + 2]]; }
 
+// a closed smooth curve with the points as control points: the one shape
+// of all the costume parts
+function blob(pts) {
+  const m = (p, q) => [0.5 * (p[0] + q[0]), 0.5 * (p[1] + q[1])];
+  const n = pts.length;
+  let s = m(pts[n - 1], pts[0]);
+  ctx.beginPath(); ctx.moveTo(s[0], s[1]);
+  for (let i = 0; i < n; i++) { s = m(pts[i], pts[(i + 1) % n]); ctx.quadraticCurveTo(pts[i][0], pts[i][1], s[0], s[1]); }
+  ctx.closePath();
+}
+
+// The parts are drawn in screen space, in a frame of the goose: u along the
+// body toward the beak, v toward the back. Thus they keep their shape from
+// all sides. Sizes are in bird diameters.
 function decorations(offsetZ, flap) {
   const A = st.anchors, D = eng.birdD(), P = st.parts;
   const wp = (i) => [P[3 * i], P[3 * i + 1], P[3 * i + 2] + offsetZ];
-  const nose = wp(A.nose), tail = wp(A.tail);
-  const axis = norm([nose[0] - tail[0], nose[1] - tail[1], nose[2] - tail[2]]);
   const pt = (w) => { const o = [0, 0, 0]; proj(w[0], w[1], w[2], o, 0); return o; };
-  const add = (w, s, k) => [w[0] + s * k[0], w[1] + s * k[1], w[2] + s * k[2]];
+  const nose = wp(A.nose), tail = wp(A.tail);
+  const n = pt(nose), t = pt(tail);
+  let ux = n[0] - t[0], uy = n[1] - t[1];
+  const ul = Math.hypot(ux, uy);
+  if (ul < 1e-6) { ux = 1; uy = 0; } else { ux /= ul; uy /= ul; }
+  // v: perpendicular to u, on the side of the goose's back (+y)
+  const top = pt([nose[0], nose[1] + 0.1, nose[2]]);
+  const side = (top[0] - n[0]) * -uy + (top[1] - n[1]) * ux > 0 ? 1 : -1;
+  const vx = -uy * side, vy = ux * side;
+  // a point at (u, v) bird diameters from the screen point c
+  const at = (c, k, u, v) => [c[0] + k * (u * ux + v * vx), c[1] + k * (u * uy + v * vy)];
   const dizzy = contactStarted();
   const list = [];
-  const scale = (z) => cam.foc / z;
+  const scale = (z) => D * cam.foc / z;
+  // the one outline rule: ink, 1.2 % of the bird diameter, at least 1 px
+  const outline = (z) => { ctx.strokeStyle = GOOSE.ink; ctx.lineWidth = Math.max(DPR, 0.012 * scale(z)); ctx.lineJoin = "round"; ctx.stroke(); };
+  const part = (c, fill, pts, dz) => list.push({ depth: c[2] + dz, draw() { ctx.fillStyle = fill; blob(pts); ctx.fill(); outline(c[2]); } });
+  const feather = rgb(GOOSE.belly);
 
-  // wings: paint only, no mass
-  for (const [side, i] of [[1, A.wings[0]], [-1, A.wings[1]]]) {
-    const s = wp(i);
-    // little wings on the back, flapping in the approach, limp after it
-    const lift = dizzy ? 0.1 * D + 0.04 * D * Math.sin(performance.now() / 40) : (0.45 + 0.3 * flap) * D;
-    const out = dizzy ? 0.55 * D : (0.35 - 0.2 * flap) * D;
-    const tip = add([s[0] + side * out, s[1] + lift, s[2]], -0.35 * D, axis);
-    const back = add([s[0] + side * 0.1 * D, s[1] + 0.05 * D, s[2]], -0.5 * D, axis);
-    const a = pt(s), b = pt(tip), c = pt(back);
-    list.push({ depth: a[2] + 0.002, draw() {
-      ctx.fillStyle = "#fbfaf6"; ctx.strokeStyle = "#8f8a7d"; ctx.lineWidth = 1.5 * DPR;
-      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.closePath();
-      ctx.fill(); ctx.stroke();
-    } });
+  // wings: soft feathers on the sides, flapping in the approach, limp after it
+  for (const i of A.wings) {
+    const c = sp(i), k = scale(c[2]);
+    const up = dizzy ? -0.05 + 0.03 * Math.sin(performance.now() / 40) : 0.25 + 0.2 * flap;
+    part(c, feather, [at(c, k, 0.18, 0.02), at(c, k, -0.2, 0.12 + up), at(c, k, -0.5, 0.1 + 0.8 * up), at(c, k, -0.3, -0.12)], -0.03);
   }
-  // beak
+  // a tuft of feathers on the head
   {
-    const n = pt(nose);
-    const tipW = add(nose, 0.42 * D, axis);
-    const t = pt(tipW);
-    const up = pt([nose[0], nose[1] + 0.13 * D, nose[2]]), dn = pt([nose[0], nose[1] - 0.11 * D, nose[2]]);
-    list.push({ depth: n[2] - 0.004, draw() {
-      ctx.fillStyle = "#f08c00"; ctx.strokeStyle = "#a35b00"; ctx.lineWidth = 1.2 * DPR;
-      ctx.beginPath(); ctx.moveTo(up[0], up[1]); ctx.lineTo(t[0], t[1]); ctx.lineTo(dn[0], dn[1]); ctx.closePath();
-      ctx.fill(); ctx.stroke();
-    } });
+    const c = sp(A.tuft), k = scale(c[2]);
+    part(c, feather, [at(c, k, 0.05, -0.02), at(c, k, 0.04, 0.14), at(c, k, -0.12, 0.24), at(c, k, -0.07, 0.04)], -0.02);
   }
-  // orange feet, tucked under the belly
-  for (const [side, i] of [[1, A.feet[0]], [-1, A.feet[1]]]) {
-    const f = wp(i);
-    const k = pt(f);
-    const toes = [-0.12, 0, 0.12].map((dx) => pt(add([f[0] + side * 0.05 * D + dx * D, f[1] - 0.28 * D, f[2]], 0.12 * D, axis)));
-    list.push({ depth: k[2] + 0.001, draw() {
-      ctx.fillStyle = "#f59f00"; ctx.strokeStyle = "#a35b00"; ctx.lineWidth = 1.2 * DPR;
-      ctx.beginPath(); ctx.moveTo(k[0], k[1]);
-      for (const q of toes) ctx.lineTo(q[0], q[1]);
-      ctx.closePath(); ctx.fill(); ctx.stroke();
-    } });
+  // beak: a short round bean
+  {
+    const k = scale(n[2]);
+    part(n, GOOSE.orange, [at(n, k, -0.04, 0.09), at(n, k, 0.26, 0.05), at(n, k, 0.26, -0.03), at(n, k, -0.04, -0.08)], -0.03);
   }
-  // cheeks
+  // orange webbed feet, tucked under the belly
+  for (const i of A.feet) {
+    const c = sp(i), k = scale(c[2]);
+    part(c, GOOSE.orange, [at(c, k, 0, 0), at(c, k, -0.06, -0.2), at(c, k, 0.06, -0.26), at(c, k, 0.22, -0.2), at(c, k, 0.1, -0.08)], -0.01);
+  }
+  // blush
   for (const i of A.cheeks) {
     const c = sp(i);
-    const rr = 0.07 * D * scale(c[2]);
-    list.push({ depth: c[2] - 0.003, draw() {
-      ctx.fillStyle = "rgba(255,120,150,0.55)";
-      ctx.beginPath(); ctx.ellipse(c[0], c[1], rr * 1.3, rr * 0.8, 0, 0, 2 * Math.PI); ctx.fill();
+    const rr = 0.07 * scale(c[2]);
+    list.push({ depth: c[2] - 0.008, draw() {
+      ctx.fillStyle = GOOSE.blush;
+      ctx.beginPath(); ctx.ellipse(c[0], c[1], rr * 1.3, rr * 0.85, Math.atan2(uy, ux), 0, 2 * Math.PI); ctx.fill();
     } });
   }
-  // eyes: round before contact, spirals after
+  // eyes: big and round before contact, spirals after
   for (const i of A.eyes) {
     const c = sp(i);
-    const rr = 0.12 * D * scale(c[2]);
-    list.push({ depth: c[2] - 0.004, draw() {
-      ctx.fillStyle = "#fff"; ctx.strokeStyle = "#111"; ctx.lineWidth = 1.2 * DPR;
-      ctx.beginPath(); ctx.arc(c[0], c[1], rr, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+    const rr = 0.11 * scale(c[2]);
+    list.push({ depth: c[2] - 0.01, draw() {
+      ctx.fillStyle = GOOSE.ink;
+      ctx.beginPath(); ctx.arc(c[0], c[1], rr, 0, 2 * Math.PI); ctx.fill();
+      ctx.fillStyle = "#fff";
       if (dizzy) {
+        ctx.beginPath(); ctx.arc(c[0], c[1], rr * 0.82, 0, 2 * Math.PI); ctx.fill();
+        ctx.strokeStyle = GOOSE.ink; ctx.lineWidth = Math.max(DPR, 0.16 * rr);
         ctx.beginPath();
         const turn = performance.now() / 120;
         for (let k = 0; k <= 40; k++) {
-          const a = turn + k * 0.45, q = rr * 0.9 * k / 40;
+          const a = turn + k * 0.45, q = rr * 0.7 * k / 40;
           const x = c[0] + q * Math.cos(a), y = c[1] + q * Math.sin(a);
           if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
         }
         ctx.stroke();
       } else {
-        ctx.fillStyle = "#111";
-        ctx.beginPath(); ctx.arc(c[0] - rr * 0.15, c[1] + rr * 0.1, rr * 0.55, 0, 2 * Math.PI); ctx.fill();
-        ctx.fillStyle = "#fff";
-        ctx.beginPath(); ctx.arc(c[0] - rr * 0.32, c[1] - rr * 0.12, rr * 0.18, 0, 2 * Math.PI); ctx.fill();
+        ctx.beginPath(); ctx.arc(c[0] - rr * 0.32, c[1] - rr * 0.32, rr * 0.34, 0, 2 * Math.PI); ctx.fill();
+        ctx.beginPath(); ctx.arc(c[0] + rr * 0.3, c[1] + rr * 0.3, rr * 0.14, 0, 2 * Math.PI); ctx.fill();
       }
     } });
   }
@@ -435,14 +506,15 @@ function drawStars(offsetZ) {
     proj(cx + 0.6 * D * Math.cos(a), cy + 0.9 * D, cz + offsetZ + 0.6 * D * Math.sin(a), o, 0);
     if (o[2] <= 0.01) continue;
     const r = 0.1 * D * cam.foc / o[2];
-    ctx.fillStyle = "#ffd43b"; ctx.strokeStyle = "#a07800"; ctx.lineWidth = DPR;
-    ctx.beginPath();
+    const q = [];
     for (let j = 0; j < 10; j++) {
-      const ang = -Math.PI / 2 + j * Math.PI / 5, q = j % 2 ? r * 0.45 : r;
-      const x = o[0] + q * Math.cos(ang), y = o[1] + q * Math.sin(ang);
-      if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      const ang = -Math.PI / 2 + j * Math.PI / 5, rr = j % 2 ? r * 0.5 : r;
+      q.push([o[0] + rr * Math.cos(ang), o[1] + rr * Math.sin(ang)]);
     }
-    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = GOOSE.star;
+    ctx.beginPath(); q.forEach((p, j) => (j ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = GOOSE.ink; ctx.lineWidth = Math.max(DPR, 0.012 * D * cam.foc / o[2]); ctx.lineJoin = "round"; ctx.stroke();
   }
 }
 
@@ -461,7 +533,7 @@ function chart(cv, series, opt) {
   const y0 = fy(opt.ymin), y1 = fy(opt.ymax);
   const X = (x) => L + (w - L - R) * (x - opt.xmin) / (opt.xmax - opt.xmin);
   const Y = (y) => T + (h - T - B) * (1 - (fy(y) - y0) / (y1 - y0));
-  c.font = "11px ui-monospace, Menlo, monospace";
+  c.font = `11px ${css.getPropertyValue("--mono")}`;
   c.strokeStyle = line; c.fillStyle = muted; c.lineWidth = 1;
   for (const yt of opt.yticks) {
     c.beginPath(); c.moveTo(L, Y(yt)); c.lineTo(w - R, Y(yt)); c.stroke();
@@ -493,7 +565,7 @@ function ticks(max, n) {
 function drawForceChart() {
   const xs = st.hist.map((h) => h.t * 1e6), ys = st.hist.map((h) => h.f / 1e3);
   const ymax = Math.max(50, ...ys) * 1.1;
-  chart($("forceChart"), [{ xs, ys, color: "#e8590c" }], {
+  chart($("forceChart"), [{ xs, ys, color: "#c4613f" }], {
     xmin: 0, xmax: T_END * 1e6, ymin: 0, ymax, xticks: ticks(T_END * 1e6, 6), yticks: ticks(ymax, 4),
     xlabel: "time (µs)", ylabel: "contact force (kN)",
   });
@@ -507,6 +579,7 @@ function fire() {
   setupRun(0);
   st.phase = "approach";
   st.t0 = performance.now();
+  startGif();
   $("verdict").hidden = true;
   setBusy(true);
   honk(Math.sqrt(st.speed / V_C));
@@ -516,18 +589,24 @@ function fire() {
 function setBusy(b) {
   $("fire").disabled = b;
   $("wilbeck").disabled = b;
+  $("gif").disabled = b || !st.gif;
   $("fire").textContent = b ? "GOOSE IN FLIGHT" : "FIRE THE GOOSE";
   for (const el of document.querySelectorAll("#presets input, #speed")) el.disabled = b;
 }
 
+// Runs the solver one phase at a time for BUDGET_MS. A frame can end in the
+// middle of a step: the code view shows the phase that ran last.
 function stepSolver(tEnd, perStep) {
   const t0 = performance.now(), s0 = eng.time();
-  let steps = 0;
-  do {
-    steps += eng.advance(1, tEnd);
-    if (perStep) perStep();
-  } while (performance.now() - t0 < BUDGET_MS && eng.time() < tEnd);
-  const ms = performance.now() - t0;
+  let steps = 0, t = t0;
+  while (t - t0 < BUDGET_MS) {
+    const k = eng.stepPhase(tEnd);
+    if (k < 0) break;
+    t = performance.now();
+    st.solverPhase = k;
+    if (k === 4) { steps++; if (perStep) perStep(); }
+  }
+  const ms = t - t0;
   st.msPerStep = steps ? ms / steps : 0;
   st.frameSim = eng.time() - s0;
 }
@@ -555,10 +634,10 @@ function telemetry() {
   $("honkBar").style.width = `${Math.min(100, eng.contactForce() / 3e5 * 100)}%`;
 
   const parts = [
-    ["bird kinetic", eng.birdKE(), "#4dabf7"],
-    ["bird squish (internal)", eng.birdWork(), "#9775fa"],
-    ["panel kinetic", eng.panelKE(), "#20c997"],
-    ["panel strain + plastic", eng.panelWork(), "#fd7e14"],
+    ["bird kinetic", eng.birdKE(), "#3f6f86"],
+    ["bird squish (internal)", eng.birdWork(), "#94b49c"],
+    ["panel kinetic", eng.panelKE(), "#e2b54f"],
+    ["panel strain + plastic", eng.panelWork(), "#c4613f"],
   ];
   const sum = parts.reduce((s, p) => s + p[1], 0);
   $("ebar").innerHTML = parts.map(([, v, c]) => `<div style="width:${Math.max(0, v / st.ke0 * 100)}%;background:${c}"></div>`).join("");
@@ -597,6 +676,7 @@ function wallCheck() {
   const [ph, us] = hugoniot(v);
   st.wall = { ph, us, ps: stagnation(v), tl: eng.birdL() / v, area: Math.PI * eng.sensorR() ** 2, xs: [], ys: [], peak: 0, plat: 0, platN: 0 };
   st.phase = "wall";
+  startGif();
   $("verdict").hidden = true;
   $("wallChart").scrollIntoView({ behavior: "smooth", block: "center" });
   setBusy(true);
@@ -615,12 +695,12 @@ function wallSample() {
 
 function drawWallChart() {
   const w = st.wall;
-  chart($("wallChart"), [{ xs: w.xs, ys: w.ys, color: "#4dabf7" }], {
+  chart($("wallChart"), [{ xs: w.xs, ys: w.ys, color: "#3f6f86" }], {
     xmin: 0, xmax: 1.5 * w.tl * 1e6, ymin: 1, ymax: 1000, log: true,
     xticks: ticks(1.5 * w.tl * 1e6, 6), yticks: [1, 10, 100, 1000],
     xlabel: "time since contact (µs)", ylabel: "centre pressure (MPa, log)",
-    hlines: [{ y: w.ph / 1e6, label: `P_H ${fmt(w.ph / 1e6, 1)} MPa`, color: "#c92a2a" },
-             { y: w.ps / 1e6, label: `P_s ${fmt(w.ps / 1e6, 2)} MPa`, color: "#2b8a3e" }],
+    hlines: [{ y: w.ph / 1e6, label: `P_H ${fmt(w.ph / 1e6, 1)} MPa`, color: "#a8432a" },
+             { y: w.ps / 1e6, label: `P_s ${fmt(w.ps / 1e6, 2)} MPa`, color: "#4f7a4a" }],
   });
   const pm = w.platN ? w.plat / w.platN : 0;
   $("wilbeckOut").textContent =
@@ -659,29 +739,174 @@ function frame(now) {
     telemetry();
     drawForceChart();
     if (eng.time() >= T_END) {
-      st.phase = "done"; setBusy(false); verdict(); honk(0.7, 0.1);
+      st.phase = "done"; st.solverPhase = -1; st.gifHold = true; setBusy(false); verdict(); honk(0.7, 0.1);
     }
   } else if (st.phase === "wall") {
     stepSolver(1.5 * st.wall.tl, wallSample);
     readState();
     banner.textContent = `CONTROL EXPERIMENT: goose vs. rigid wall · ${fmt(eng.time() * 1e6, 0)} µs · colour = pressure`;
     drawWallChart();
-    if (eng.time() >= 1.5 * st.wall.tl) { st.phase = "done"; setBusy(false); }
+    if (eng.time() >= 1.5 * st.wall.tl) { st.phase = "done"; st.solverPhase = -1; st.gifHold = true; setBusy(false); }
   } else if (st.phase === "done") {
     banner.textContent = "Done. Drag to orbit. Scroll to zoom. Fire again for another goose.";
   }
   legend();
   if (st.nodes) render(offsetZ, flap);
+  captureGif(now);
+  codeView(now);
   requestAnimationFrame(frame);
 }
 
 function legend() {
   const showP = !st.costume || st.mode === 1;
-  const pRamp = `linear-gradient(90deg, ${[0, 0.25, 0.5, 0.75, 1].map((s) => `hsl(${230 - 230 * s} 85% ${40 + 22 * s}%)`).join(",")})`;
-  const eRamp = `linear-gradient(90deg, hsl(210 12% 74%), hsl(50 95% 58%), hsl(0 95% 48%))`;
   $("legend").innerHTML =
-    (showP ? `bird pressure (log)<div class="ramp" style="background:${pRamp}"></div>0.1 MPa … 400 MPa<br>` : "") +
-    (st.mode === 0 ? `panel plastic strain<div class="ramp" style="background:${eRamp}"></div>${fmt(EP_SHOW * 100, 1)} … ${fmt(EP_MAX * 100, 0)} %` : "");
+    (showP ? `bird pressure (log)<div class="ramp" style="background:${cssRamp("pressure")}"></div><span class="ticks"><span>0.1</span><span>6.3</span><span>400 MPa</span></span>` : "") +
+    (st.mode === 0 ? `panel plastic strain (square-root scale)<div class="ramp" style="background:${cssRamp("metal")}"></div><span class="ticks">${[0, 1, 2, 3].map((k) => `<span>${fmt(EP_MAX * 100 * k * k / 9, 0)}${k === 3 ? " %" : ""}</span>`).join("")}</span>` : "");
+}
+
+// ---------------------------------------------------------------------------
+// the GIF export: one frame each GIF_SIM_US of simulated time, and about
+// ten per second of the cartoon approach
+
+function startGif() {
+  const h = Math.round(GIF_W * H / W) & ~1;
+  st.gif = { rec: new GifRecorder(GIF_W, h + 28), h, cv: document.createElement("canvas"), next: 0, simNext: 0, title: st.mode === 0 ? PRESETS[st.preset].name : "Rigid wall check" };
+  st.gif.cv.width = GIF_W; st.gif.cv.height = h + 28;
+  st.gifHold = false;
+  $("gif").disabled = true;
+  $("gif").textContent = "Export GIF";
+}
+
+function captureGif(now) {
+  const g = st.gif;
+  if (!g || g.done) return;
+  let delay;
+  if (st.phase === "approach") {
+    if (now < g.next) return;
+    g.next = now + 100; delay = 10;
+  } else if (st.phase === "sim" || st.phase === "wall") {
+    const tUs = eng.time() * 1e6;
+    if (tUs < g.simNext) return;
+    g.simNext = (Math.floor(tUs / GIF_SIM_US) + 1) * GIF_SIM_US; delay = 4;
+  } else if (st.gifHold) {
+    g.done = true; delay = 300;     // the last frame stays 3 s
+  } else return;
+  const c = g.cv.getContext("2d");
+  const css = getComputedStyle(document.body);
+  c.fillStyle = css.getPropertyValue("--stage");
+  c.fillRect(0, 0, GIF_W, g.h);
+  c.drawImage(canvas, 0, 0, GIF_W, g.h);
+  // the caption: what it is, the time, and the colour bar with its numbers
+  c.fillStyle = css.getPropertyValue("--bg");
+  c.fillRect(0, g.h, GIF_W, 28);
+  c.fillStyle = css.getPropertyValue("--ink");
+  c.font = `12px ${css.getPropertyValue("--sans")}`;
+  c.textBaseline = "middle";
+  const y = g.h + 14;
+  const t = st.phase === "approach" ? "approach (cartoon)" : `t = ${fmt(eng.time() * 1e6, 0)} µs`;
+  c.fillText(`${g.title} · ${t}`, 8, y);
+  const pressure = !st.costume || st.mode === 1, name = pressure ? "pressure" : "metal";
+  const x0 = GIF_W - 220;
+  for (let k = 0; k < 90; k++) { c.fillStyle = mapColour(name, k / 89); c.fillRect(x0 + k, y - 5, 1, 10); }
+  c.fillStyle = css.getPropertyValue("--ink");
+  c.textAlign = "right"; c.fillText(pressure ? "0.1" : "0", x0 - 4, y);
+  c.textAlign = "left"; c.fillText(pressure ? "400 MPa, log" : `${fmt(EP_MAX * 100, 0)} % plastic, √`, x0 + 94, y);
+  c.textAlign = "left";
+  g.rec.add(c.getImageData(0, 0, GIF_W, g.h + 28), delay);
+}
+
+async function exportGif() {
+  const g = st.gif;
+  if (!g || !g.rec.frames.length) return;
+  const b = $("gif");
+  b.disabled = true; b.textContent = "Making the GIF…";
+  await new Promise((r) => setTimeout(r, 30));      // let the button text show
+  const bytes = g.rec.encode();
+  const url = URL.createObjectURL(new Blob([bytes], { type: "image/gif" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `goosestrike-${g.title.toLowerCase().replace(/ /g, "-")}-${fmt(st.speed, 0)}ms.gif`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  b.textContent = `Export GIF (${fmt(bytes.length / 1e6, 1)} MB)`;
+  b.disabled = false;
+}
+
+// ---------------------------------------------------------------------------
+// the code view: sim/strike.goose, with the phase of the step that ran last.
+// The phase comes from the solver (step_phase), not from a clock.
+
+const PHASES = [
+  { name: "time step", fns: ["stable_dt", "shell_dt"] },
+  { name: "SPH bird", fns: ["sph_forces", "bin_particles"] },
+  { name: "shells, plasticity, erosion", fns: ["shell_forces", "shell_element", "plane_stress_return"] },
+  { name: "contact", fns: ["contact", "bin_elements", "closest_tri"] },
+  { name: "integration", fns: ["integrate", "tait"] },
+];
+const code = { lines: null, step: null, ranges: [], shown: -2, last: 0, scrolled: 0, scrolledK: -1, chips: [] };
+
+async function loadCode() {
+  const src = await (await fetch("strike.goose")).text();
+  const lines = src.replace(/\n$/, "").split("\n");
+  // a function: from its comment lines to the first "}" at the start of a line
+  const fnRange = (name) => {
+    let a = lines.findIndex((l) => new RegExp(`^(export )?fn ${name}\\(`).test(l));
+    if (a < 0) return null;
+    let b = a;
+    while (b < lines.length && lines[b] !== "}") b++;
+    while (a > 0 && lines[a - 1].startsWith("//")) a--;
+    return [a, b];
+  };
+  const [r0, r1] = fnRange("run_phase");
+  code.ranges = PHASES.map((ph, k) => {
+    // the branch of run_phase for phase k, and the functions it calls
+    let a = lines.findIndex((l, i) => i > r0 && i < r1 && (l.includes(`k == ${k} {`) || (k === 4 && l.trim() === "} else {")));
+    let b = a + 1;
+    while (b < r1 && !lines[b].trim().startsWith("}")) b++;
+    return [[a, b - 1], ...ph.fns.map(fnRange).filter(Boolean)];
+  });
+  const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const kw = /\b(fn|let|var|if|else|for|in|while|return|export|import|continue)\b/g;
+  const html = (i) => {
+    const l = lines[i], c = l.indexOf("//");
+    const body = c < 0 ? l : l.slice(0, c), note = c < 0 ? "" : l.slice(c);
+    return `<span class="ln" data-n="${i + 1}">${esc(body).replace(kw, "<b>$1</b>")}${note ? `<i>${esc(note)}</i>` : ""}\n</span>`;
+  };
+  // the step pane: run_phase, which calls one phase; the source pane: all of it
+  $("step").innerHTML = lines.slice(r0, r1 + 1).map((_, j) => html(r0 + j)).join("");
+  $("code").innerHTML = lines.map((_, i) => html(i)).join("");
+  code.step = { first: r0, lines: $("step").children };
+  code.lines = $("code").children;
+  $("phases").innerHTML = PHASES.map((ph, k) => `<li><button data-k="${k}"><span>${k}</span> ${ph.name}</button></li>`).join("");
+  code.chips = [...$("phases").querySelectorAll("button")];
+  for (const b of code.chips) b.onclick = () => scrollCode(+b.dataset.k);
+}
+
+// scrolls the source pane to the first function of phase k
+function scrollCode(k) {
+  const el = code.lines[code.ranges[k][1]?.[0] ?? code.ranges[k][0][0]];
+  $("code").scrollTo({ top: el.offsetTop - $("code").offsetTop - 8, behavior: "smooth" });
+}
+
+function codeView(now) {
+  if (!code.lines || now - code.last < 120) return;   // a readable rate
+  code.last = now;
+  const k = st.phase === "sim" || st.phase === "wall" ? st.solverPhase : -1;
+  code.chips.forEach((b, i) => b.classList.toggle("on", i === k));
+  // the source pane moves at most once a second, so that the eye can follow
+  if (k >= 0 && k !== code.scrolledK && now - code.scrolled > 1000) {
+    scrollCode(k); code.scrolled = now; code.scrolledK = k;
+  }
+  if (k === code.shown) return;
+  for (const l of code.lines) l.classList.remove("on");
+  for (const l of code.step.lines) l.classList.remove("on");
+  if (k >= 0) {
+    for (const [a, b] of code.ranges[k]) for (let i = a; i <= b; i++) code.lines[i].classList.add("on");
+    const [a, b] = code.ranges[k][0];
+    for (let i = a; i <= b; i++) code.step.lines[i - code.step.first].classList.add("on");
+  }
+  code.shown = k;
+  $("codeState").textContent = k >= 0 ? `Phase ${k} (${PHASES[k].name}) ran last.` : "The solver is idle.";
 }
 
 // ---------------------------------------------------------------------------
@@ -721,6 +946,7 @@ $("speed").value = V_C;
 $("speed").oninput = (e) => { st.speed = +e.target.value; showSpeed(); };
 $("fire").onclick = fire;
 $("wilbeck").onclick = wallCheck;
+$("gif").onclick = exportGif;
 $("mute").onclick = () => {
   st.muted = !st.muted;
   try { localStorage.setItem("goosestrike-muted", st.muted ? "1" : "0"); } catch { /* no storage */ }
@@ -748,6 +974,7 @@ canvas.addEventListener("wheel", (e) => {
   st.dist = Math.max(0.4, Math.min(5, st.dist * Math.exp(e.deltaY * 0.001)));
 }, { passive: false });
 
+loadCode();
 showSpeed();
 showMute();
 buildPresets();
