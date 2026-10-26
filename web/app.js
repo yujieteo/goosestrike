@@ -67,13 +67,21 @@ try { st.muted = localStorage.getItem("goosestrike-muted") === "1"; } catch { /*
 
 let audio = null;
 function ac() {
-  if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+  try {
+    if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+  } catch {
+    st.muted = true;
+    showMute();
+    return null;
+  }
   return audio;
 }
 
 function honk(pitch = 1, when = 0) {
   if (st.muted) return;
-  const a = ac(), t = a.currentTime + when;
+  const a = ac();
+  if (!a) return;
+  const t = a.currentTime + when;
   const osc = a.createOscillator(), osc2 = a.createOscillator();
   const bp = a.createBiquadFilter(), g = a.createGain();
   osc.type = "sawtooth"; osc2.type = "square";
@@ -91,7 +99,9 @@ function honk(pitch = 1, when = 0) {
 
 function splat() {
   if (st.muted) return;
-  const a = ac(), t = a.currentTime;
+  const a = ac();
+  if (!a) return;
+  const t = a.currentTime;
   const n = Math.floor(a.sampleRate * 0.5);
   const buf = a.createBuffer(1, n, a.sampleRate);
   const d = buf.getChannelData(0);
