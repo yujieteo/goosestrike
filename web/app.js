@@ -24,7 +24,15 @@ const $ = (id) => document.getElementById(id);
 const fmt = (x, d = 1) => x.toLocaleString("en-GB", { minimumFractionDigits: d, maximumFractionDigits: d });
 const sign = (x, d = 1) => (x > 0 ? "+" : x < 0 ? "−" : "") + fmt(Math.abs(x), d);
 
-const eng = await loadEngine();
+let eng;
+try {
+  eng = await loadEngine();
+} catch (error) {
+  $("fire").textContent = "GOOSE UNAVAILABLE";
+  $("banner").setAttribute("role", "alert");
+  $("banner").textContent = "The solver could not load. Reload the page to try again.";
+  throw error;
+}
 
 const st = {
   phase: "idle",          // idle | approach | sim | done | wall
