@@ -625,6 +625,7 @@ function fire() {
 
 function setBusy(b) {
   const focusStop = b && (document.activeElement === $("fire") || document.activeElement === $("wilbeck"));
+  const focusFire = !b && document.activeElement === $("stop");
   $("fire").disabled = b;
   $("wilbeck").disabled = b;
   $("stop").disabled = !b;
@@ -632,6 +633,7 @@ function setBusy(b) {
   $("fire").textContent = b ? "GOOSE IN FLIGHT" : "FIRE THE GOOSE";
   for (const el of document.querySelectorAll("#presets input, #speed, #speedNumber, #snap")) el.disabled = b;
   if (focusStop) $("stop").focus({ preventScroll: true });
+  if (focusFire) $("fire").focus({ preventScroll: true });
 }
 
 function stopRun() {
@@ -648,9 +650,7 @@ function stopRun() {
   st.gifHold = false;
   $("bubble").hidden = true;
   preview();
-  const focusFire = document.activeElement === $("stop");
   setBusy(false);
-  if (focusFire) $("fire").focus({ preventScroll: true });
   $("banner").textContent = "Run stopped. Goose reset. Select a speed or resolution, then press FIRE.";
 }
 
