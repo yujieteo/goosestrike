@@ -1068,7 +1068,7 @@ $("btnZoomIn").onclick = () => zoom(1 / 1.2);
 $("btnZoomOut").onclick = () => zoom(1.2);
 
 function showZoom() {
-  canvas.style.touchAction = st.pov ? "pan-y" : "none";
+  canvas.style.touchAction = st.pov ? "pan-y pinch-zoom" : "pinch-zoom";
   $("btnZoomIn").disabled = st.pov || st.dist <= 0.4;
   $("btnZoomOut").disabled = st.pov || st.dist >= 5;
 }
