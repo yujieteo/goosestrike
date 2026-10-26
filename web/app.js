@@ -590,9 +590,28 @@ function fire() {
 function setBusy(b) {
   $("fire").disabled = b;
   $("wilbeck").disabled = b;
+  $("stop").disabled = !b;
   $("gif").disabled = b || !st.gif;
   $("fire").textContent = b ? "GOOSE IN FLIGHT" : "FIRE THE GOOSE";
   for (const el of document.querySelectorAll("#presets input, #speed, #snap")) el.disabled = b;
+}
+
+function stopRun() {
+  if (st.phase !== "approach" && st.phase !== "sim" && st.phase !== "wall") return;
+  if (st.mode === 1) {
+    st.wall = null;
+    const chart = $("wallChart");
+    chart.getContext("2d").clearRect(0, 0, chart.width, chart.height);
+    $("wilbeckOut").textContent = "Wall check stopped. No result.";
+  }
+  st.gif = null;
+  st.gifHold = false;
+  st.frameSim = 0;
+  st.msPerStep = 0;
+  $("bubble").hidden = true;
+  preview();
+  setBusy(false);
+  $("banner").textContent = "Run stopped. Goose reset. Select a speed or resolution, then press FIRE.";
 }
 
 // Runs the solver one phase at a time for BUDGET_MS. A frame can end in the
@@ -955,6 +974,7 @@ $("speed").oninput = (e) => { st.speed = +e.target.value; showSpeed(); };
 // Update the idle preview on release, so a drag does not repeat solver setup.
 $("speed").onchange = () => { if (st.phase === "idle") preview(); };
 $("fire").onclick = fire;
+$("stop").onclick = stopRun;
 $("wilbeck").onclick = wallCheck;
 $("gif").onclick = exportGif;
 $("mute").onclick = () => {

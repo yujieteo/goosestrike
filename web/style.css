@@ -90,6 +90,7 @@ button[aria-pressed="true"]:hover:not(:disabled) { color: var(--bg); background:
 .fire:active:not(:disabled) { transform: translateY(1px); }
 .small { font-size: 0.8rem; }
 .wide { display: block; width: 100%; margin-top: 8px; }
+#stop { min-height: 44px; }
 
 .field { display: block; margin-top: 1.25rem; font-weight: 500; }
 .field output { float: right; font: 500 13px var(--mono); }
