@@ -889,8 +889,10 @@ async function exportGif() {
   a.download = `goosestrike-${g.title.toLowerCase().replace(/ /g, "-")}-${fmt(g.speed, 0)}ms.gif`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
-  b.textContent = `Export GIF (${fmt(bytes.length / 1e6, 1)} MB)`;
-  b.disabled = false;
+  if (st.gif === g) {
+    b.textContent = `Export GIF (${fmt(bytes.length / 1e6, 1)} MB)`;
+    b.disabled = false;
+  }
 }
 
 // ---------------------------------------------------------------------------
