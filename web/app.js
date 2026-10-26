@@ -771,7 +771,7 @@ function legend() {
 
 function startGif() {
   const h = Math.round(GIF_W * H / W) & ~1;
-  st.gif = { rec: new GifRecorder(GIF_W, h + 28), h, cv: document.createElement("canvas"), next: 0, simNext: 0, title: st.mode === 0 ? PRESETS[st.preset].name : "Rigid wall check" };
+  st.gif = { rec: new GifRecorder(GIF_W, h + 28), h, cv: document.createElement("canvas"), next: 0, simNext: 0, speed: st.speed, title: st.mode === 0 ? PRESETS[st.preset].name : "Rigid wall check" };
   st.gif.cv.width = GIF_W; st.gif.cv.height = h + 28;
   st.gifHold = false;
   $("gif").disabled = true;
@@ -826,7 +826,7 @@ async function exportGif() {
   const url = URL.createObjectURL(new Blob([bytes], { type: "image/gif" }));
   const a = document.createElement("a");
   a.href = url;
-  a.download = `goosestrike-${g.title.toLowerCase().replace(/ /g, "-")}-${fmt(st.speed, 0)}ms.gif`;
+  a.download = `goosestrike-${g.title.toLowerCase().replace(/ /g, "-")}-${fmt(g.speed, 0)}ms.gif`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
   b.textContent = `Export GIF (${fmt(bytes.length / 1e6, 1)} MB)`;
