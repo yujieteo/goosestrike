@@ -611,7 +611,7 @@ function setBusy(b) {
   $("stop").disabled = !b;
   $("gif").disabled = b || !st.gif;
   $("fire").textContent = b ? "GOOSE IN FLIGHT" : "FIRE THE GOOSE";
-  for (const el of document.querySelectorAll("#presets input, #speed, #snap")) el.disabled = b;
+  for (const el of document.querySelectorAll("#presets input, #speed, #speedNumber, #snap")) el.disabled = b;
 }
 
 function stopRun() {
@@ -957,6 +957,8 @@ function codeView(now) {
 
 function showSpeed() {
   const v = st.speed;
+  $("speedNumber").value = v.toFixed(2);
+  $("speedEntryStatus").textContent = "";
   $("speedOut").textContent = `${fmt(v, 2)} m/s = ${fmt(v / KT, 1)} kt`;
   const on = Math.abs(v - V_C) < 0.005;
   const sc = $("specCheck");
@@ -989,6 +991,19 @@ function preview() {
 }
 
 $("speed").value = V_C;
+for (const attr of ["min", "max", "step"]) $("speedNumber")[attr] = $("speed")[attr];
+$("speedNumber").onchange = (e) => {
+  const input = e.target;
+  if (!input.checkValidity()) {
+    input.value = st.speed.toFixed(2);
+    $("speedEntryStatus").textContent = "Invalid speed. The control kept the previous speed.";
+    return;
+  }
+  st.speed = input.valueAsNumber;
+  $("speed").value = st.speed;
+  showSpeed();
+  if (st.phase === "idle") preview();
+};
 $("speed").oninput = (e) => { st.speed = +e.target.value; showSpeed(); };
 // Update the idle preview on release, so a drag does not repeat solver setup.
 $("speed").onchange = () => { if (st.phase === "idle") preview(); };

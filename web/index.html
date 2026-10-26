@@ -45,6 +45,10 @@
     <label class="field">Goose speed <output id="speedOut"></output>
       <input id="speed" type="range" min="50" max="250" step="0.01">
     </label>
+    <label class="speed-entry">Set speed (m/s)
+      <input id="speedNumber" type="number" inputmode="decimal" required aria-describedby="speedEntryStatus">
+    </label>
+    <p class="hint" id="speedEntryStatus" role="status"></p>
     <p class="hint" id="specCheck"></p>
 
     <fieldset class="presets">
