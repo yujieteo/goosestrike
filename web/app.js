@@ -886,7 +886,7 @@ async function exportGif() {
   const url = URL.createObjectURL(new Blob([bytes], { type: "image/gif" }));
   const a = document.createElement("a");
   a.href = url;
-  a.download = `goosestrike-${g.title.toLowerCase().replace(/ /g, "-")}-${fmt(g.speed, 0)}ms.gif`;
+  a.download = `goosestrike-${g.title.toLowerCase().replace(/ /g, "-")}-${g.speed.toFixed(2)}mps.gif`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
   if (st.gif === g) {
