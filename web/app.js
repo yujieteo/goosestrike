@@ -983,11 +983,24 @@ function zoom(factor) {
 }
 
 let drag = null;
+function rotate(dx, dy) {
+  if (st.pov) return;
+  st.yaw += dx;
+  st.pitch = Math.max(-1.45, Math.min(1.45, st.pitch + dy));
+}
+
+canvas.addEventListener("keydown", (e) => {
+  if (e.altKey || e.ctrlKey || e.metaKey || st.pov) return;
+  const turns = { ArrowLeft: [-0.1, 0], ArrowRight: [0.1, 0], ArrowUp: [0, -0.1], ArrowDown: [0, 0.1] };
+  const turn = turns[e.key];
+  if (!turn) return;
+  e.preventDefault();
+  rotate(...turn);
+});
 canvas.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); });
 canvas.addEventListener("pointermove", (e) => {
   if (!drag || st.pov) return;
-  st.yaw += (e.clientX - drag.x) * 0.008;
-  st.pitch = Math.max(-1.45, Math.min(1.45, st.pitch + (e.clientY - drag.y) * 0.008));
+  rotate((e.clientX - drag.x) * 0.008, (e.clientY - drag.y) * 0.008);
   drag = { x: e.clientX, y: e.clientY };
 });
 canvas.addEventListener("pointerup", () => { drag = null; });

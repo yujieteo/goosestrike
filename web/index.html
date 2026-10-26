@@ -19,11 +19,12 @@
 
 <main class="wrap">
   <section class="stage">
-    <canvas id="view" aria-label="3D view of the goose and the panel"></canvas>
+    <canvas id="view" tabindex="0" aria-label="3D view of the goose and the panel" aria-describedby="cameraHint"></canvas>
     <div id="bubble" class="bubble" hidden>HONK!</div>
     <div id="banner" class="banner"></div>
     <div class="legend" id="legend"></div>
     <div class="viewbar">
+      <p id="cameraHint" class="camera-hint">Drag the view or use arrow keys to rotate. Passenger POV fixes the camera.</p>
       <button id="btnCostume" aria-pressed="true">Goose costume</button>
       <button id="btnPov" aria-pressed="false">Passenger POV</button>
       <button id="btnReset">Reset camera</button>
