@@ -594,6 +594,10 @@ function fire() {
   startGif();
   $("verdict").hidden = true;
   setBusy(true);
+  const view = canvas.getBoundingClientRect();
+  if (view.top < 0 || view.bottom > window.innerHeight) {
+    canvas.scrollIntoView({ behavior: "instant", block: "nearest" });
+  }
   honk(Math.sqrt(st.speed / V_C));
   honk(Math.sqrt(st.speed / V_C) * 1.06, 0.3);
 }
