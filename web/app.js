@@ -1105,6 +1105,7 @@ function zoom(factor) {
 }
 
 let drag = null;
+window.addEventListener("blur", () => { drag = null; });
 function rotate(dx, dy) {
   if (st.pov) return;
   st.yaw += dx;
