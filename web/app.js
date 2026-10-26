@@ -522,7 +522,17 @@ function drawStars(offsetZ) {
 // ---------------------------------------------------------------------------
 // charts
 
+const chartData = new WeakMap();
+const chartResize = new ResizeObserver((entries) => {
+  for (const { target } of entries) {
+    const data = chartData.get(target);
+    if (data) chart(target, data.series, data.opt);
+  }
+});
+
 function chart(cv, series, opt) {
+  if (!chartData.has(cv)) chartResize.observe(cv);
+  chartData.set(cv, { series, opt });
   const dpr = DPR, r = cv.getBoundingClientRect();
   cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
   const c = cv.getContext("2d");
@@ -601,6 +611,8 @@ function stopRun() {
   if (st.mode === 1) {
     st.wall = null;
     const chart = $("wallChart");
+    chartResize.unobserve(chart);
+    chartData.delete(chart);
     chart.getContext("2d").clearRect(0, 0, chart.width, chart.height);
     $("wilbeckOut").textContent = "Wall check stopped. No result.";
   }
