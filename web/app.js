@@ -1070,6 +1070,7 @@ function showMute() {
 $("btnCostume").onclick = () => { st.costume = !st.costume; $("btnCostume").setAttribute("aria-pressed", String(st.costume)); };
 $("btnPov").onclick = () => { st.pov = !st.pov; $("btnPov").setAttribute("aria-pressed", String(st.pov)); showZoom(); };
 function resetCamera() {
+  drag = null;
   st.yaw = 1.0; st.pitch = 0.25; st.dist = 1.3; st.pov = false;
   $("btnPov").setAttribute("aria-pressed", "false");
   showZoom();
