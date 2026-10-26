@@ -1045,6 +1045,7 @@ $("btnZoomIn").onclick = () => zoom(1 / 1.2);
 $("btnZoomOut").onclick = () => zoom(1.2);
 
 function showZoom() {
+  canvas.style.touchAction = st.pov ? "pan-y" : "none";
   $("btnZoomIn").disabled = st.pov || st.dist <= 0.4;
   $("btnZoomOut").disabled = st.pov || st.dist >= 5;
 }
@@ -1071,7 +1072,7 @@ canvas.addEventListener("keydown", (e) => {
   rotate(...turn);
 });
 canvas.addEventListener("pointerdown", (e) => {
-  if (drag) return;
+  if (drag || st.pov) return;
   drag = { pointerId: e.pointerId, x: e.clientX, y: e.clientY };
   canvas.setPointerCapture(e.pointerId);
 });
