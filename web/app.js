@@ -691,6 +691,7 @@ function verdict() {
   v.innerHTML = `
     <div class="stamp">${breached ? "SKIN BREACHED" : "SKIN HELD"}</div>
     <h2>${breached ? "The goose tore the skin." : "The skin held. The goose did not."}</h2>
+    <p>This run: ${pr.name} at ${fmt(st.speed, 2)} m/s (${fmt(st.speed / KT, 1)} kt), ${fmt(pr.spacing * 1e3, 1)} mm bird lattice.</p>
     <p>Eroded shell elements: ${fmt(skin, 0)} in the 2024-T3 skin, ${fmt(stiff, 0)} in the 7075-T6 stringers and frames.
       An element erodes when its plastic strain reaches the failure strain of its material. Maximum deflection ${fmt(eng.maxDeflection() * 1e3, 1)} mm.
       Peak contact force ${fmt(st.peakF / 1e3, 1)} kN. Maximum plastic strain ${fmt(eng.maxPlasticStrain() * 100, 1)} %.
@@ -699,8 +700,7 @@ function verdict() {
       That needs a residual strength analysis of the damaged structure, which this page does not do.
       This is not a certification analysis.</p>
     <p class="hint">Measured at V<sub>C</sub> only: the deflection converges with the mesh (${PRESETS.map((p) => fmt(p.defl, 1)).join(", ")} mm at ${PRESETS.map((p) => fmt(p.spacing * 1e3, 1)).join(", ")} mm).
-      The skin erosion does not (${PRESETS.map((p) => p.skin).join(", ")} skin elements): erosion depends on the element size, so a tear prediction needs a mesh-calibrated failure model.
-      This run: ${pr.name}, ${fmt(pr.spacing * 1e3, 1)} mm bird lattice.</p>`;
+      The skin erosion does not (${PRESETS.map((p) => p.skin).join(", ")} skin elements): erosion depends on the element size, so a tear prediction needs a mesh-calibrated failure model.</p>`;
 }
 
 // ---------------------------------------------------------------------------
