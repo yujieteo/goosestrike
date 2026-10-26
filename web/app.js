@@ -1086,7 +1086,7 @@ canvas.addEventListener("keydown", (e) => {
   rotate(...turn);
 });
 canvas.addEventListener("pointerdown", (e) => {
-  if (drag || st.pov) return;
+  if (e.button !== 0 || drag || st.pov) return;
   drag = { pointerId: e.pointerId, x: e.clientX, y: e.clientY };
   canvas.setPointerCapture(e.pointerId);
 });
