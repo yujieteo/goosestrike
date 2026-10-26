@@ -175,6 +175,7 @@ function setupRun(mode) {
   st.splatted = false;
   st.solverPhase = -1;
   paintGoose();
+  drawForceChart();
 }
 
 // ---------------------------------------------------------------------------
@@ -977,7 +978,6 @@ function preview() {
   st.phase = "idle";
   $("verdict").hidden = true;
   telemetry();
-  drawForceChart();
   $("banner").textContent = "Goose loaded. Goose is unaware. Press FIRE.";
 }
 
