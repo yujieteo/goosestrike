@@ -1052,14 +1052,18 @@ canvas.addEventListener("keydown", (e) => {
   e.preventDefault();
   rotate(...turn);
 });
-canvas.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener("pointerdown", (e) => {
+  if (drag) return;
+  drag = { pointerId: e.pointerId, x: e.clientX, y: e.clientY };
+  canvas.setPointerCapture(e.pointerId);
+});
 canvas.addEventListener("pointermove", (e) => {
-  if (!drag || st.pov) return;
+  if (!drag || drag.pointerId !== e.pointerId || st.pov) return;
   rotate((e.clientX - drag.x) * 0.008, (e.clientY - drag.y) * 0.008);
-  drag = { x: e.clientX, y: e.clientY };
+  drag.x = e.clientX; drag.y = e.clientY;
 });
 for (const event of ["pointerup", "pointercancel", "lostpointercapture"]) {
-  canvas.addEventListener(event, () => { drag = null; });
+  canvas.addEventListener(event, (e) => { if (drag?.pointerId === e.pointerId) drag = null; });
 }
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
