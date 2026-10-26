@@ -165,4 +165,7 @@ summary { cursor: pointer; font-weight: 500; }
   .stage, .controls, .telemetry, .code, .verdict, .wilbeck, .receipts { grid-column: 1; grid-row: auto; }
   .stage, #view { min-height: 360px; }
 }
-@media (prefers-reduced-motion: reduce) { button, .source .ln { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  button, .source .ln { transition: none; }
+  .bubble { animation: none; }
+}
