@@ -582,7 +582,7 @@ function verdict() {
     <p>Does this fail 25.571(e)(1)? Not by itself. The rule accepts damage: the aeroplane must complete the flight with it.
       That needs a residual strength analysis of the damaged structure, which this page does not do.
       This is not a certification analysis.</p>
-    <p class="hint">The deflection converges with the mesh (${PRESETS.map((p) => fmt(p.defl, 1)).join(", ")} mm at ${PRESETS.map((p) => fmt(p.spacing * 1e3, 1)).join(", ")} mm).
+    <p class="hint">Measured at V<sub>C</sub> only: the deflection converges with the mesh (${PRESETS.map((p) => fmt(p.defl, 1)).join(", ")} mm at ${PRESETS.map((p) => fmt(p.spacing * 1e3, 1)).join(", ")} mm).
       The skin erosion does not (${PRESETS.map((p) => p.skin).join(", ")} skin elements): erosion depends on the element size, so a tear prediction needs a mesh-calibrated failure model.
       This run: ${pr.name}, ${fmt(pr.spacing * 1e3, 1)} mm bird lattice.</p>`;
 }
@@ -704,7 +704,7 @@ function buildPresets() {
   $("presets").innerHTML = PRESETS.map((p, i) => `
     <label class="preset"><input type="radio" name="preset" value="${i}" ${i === st.preset ? "checked" : ""}>
       <b>${p.name}</b> · ${fmt(p.spacing * 1e3, 1)} mm bird, ${p.cells} skin cells
-      <small>wall check: peak ${sign(p.peak)} %, plateau ${sign(p.plateau)} % · solver about ${p.run}</small></label>`).join("");
+      <small>wall check at V<sub>C</sub> only: peak ${sign(p.peak)} %, plateau ${sign(p.plateau)} % · solver about ${p.run}</small></label>`).join("");
   for (const el of document.querySelectorAll("#presets input")) {
     el.onchange = () => { st.preset = +el.value; preview(); };
   }

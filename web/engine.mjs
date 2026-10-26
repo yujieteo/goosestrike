@@ -51,7 +51,6 @@ export async function loadEngine() {
     maxDeflection: () => m._get_max_defl(),
     failStrain: (mat) => m._get_eps_fail(mat),
     birdKE: () => m._get_bird_ke(),
-    birdMomentumZ: () => m._get_bird_pz(),
     panelKE: () => m._get_panel_ke(),
     panelMass: () => m._get_panel_mass(),
     // render data, valid after fillRender()

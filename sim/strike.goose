@@ -141,8 +141,6 @@ var impulse: f64 = 0.0;         // integral of contact_fz dt
 var panel_work: f64 = 0.0;      // internal work on the panel (hourglass included), J
 var hg_work: f64 = 0.0;         // the hourglass part of it, J
 var bird_work: f64 = 0.0;       // internal energy of the bird (compression and viscosity), J
-var cw_bird: f64 = 0.0;         // work of the contact forces on the bird, J
-var cw_panel: f64 = 0.0;        // and on the panel
 var n_failed: i64 = 0;
 var n_failed_skin: i64 = 0;     // the part of n_failed in the skin (material 0)
 var max_ep: f64 = 0.0;
@@ -356,7 +354,7 @@ export fn setup(m: i32, cells: i32, spacing: f64, speed: f64) -> i32 {
     mode = m;
     sim_time = 0.0; dt = 0.0; dt_prev = 0.0; nsteps = 0; t_contact = -1.0;
     contact_fz = 0.0; center_fz = 0.0; impulse = 0.0; panel_work = 0.0;
-    hg_work = 0.0; bird_work = 0.0; cw_bird = 0.0; cw_panel = 0.0;
+    hg_work = 0.0; bird_work = 0.0;
     n_failed = 0; n_failed_skin = 0; max_ep = 0.0; max_defl = 0.0;
     nn = 0; ne = 0;
     var top = 0.0;
@@ -867,7 +865,6 @@ fn step_once() {
             let a = pa[3 * i + k] + pfc[3 * i + k] * ipm;
             let vm = pv[3 * i + k] + 0.5 * a * dtm;
             bird_work -= pm * pa[3 * i + k] * vm * dtm;
-            cw_bird += pfc[3 * i + k] * vm * dtm;
             pv[3 * i + k] += a * dtm;
             px[3 * i + k] += pv[3 * i + k] * dt;
         }
@@ -889,7 +886,6 @@ fn step_once() {
                 let al = nmo[3 * n + k] * ii;
                 let wm = nw[3 * n + k] + 0.5 * al * dtm;
                 panel_work -= (nf[3 * n + k] * vm + nmo[3 * n + k] * wm) * dtm;
-                cw_panel += nfc[3 * n + k] * vm * dtm;
                 nv[3 * n + k] += a * dtm;
                 nw[3 * n + k] += al * dtm;
                 nx[3 * n + k] += nv[3 * n + k] * dt;
@@ -941,8 +937,6 @@ export fn get_sensor_r() -> f64 { sensor_r }
 export fn get_impulse() -> f64 { impulse }
 export fn get_panel_work() -> f64 { panel_work }
 export fn get_hg_work() -> f64 { hg_work }
-export fn get_contact_work_bird() -> f64 { cw_bird }
-export fn get_contact_work_panel() -> f64 { cw_panel }
 export fn get_bird_work() -> f64 { bird_work }
 export fn get_failed() -> i32 { n_failed as i32 }
 export fn get_failed_skin() -> i32 { n_failed_skin as i32 }
@@ -956,12 +950,6 @@ export fn get_bird_ke() -> f64 {
         ke += 0.5 * pm * (pv[3 * i] * pv[3 * i] + pv[3 * i + 1] * pv[3 * i + 1] + pv[3 * i + 2] * pv[3 * i + 2]);
     }
     return ke;
-}
-
-export fn get_bird_pz() -> f64 {
-    var s = 0.0;
-    for i in 0..np { s += pm * pv[3 * i + 2]; }
-    return s;
 }
 
 export fn get_panel_ke() -> f64 {
