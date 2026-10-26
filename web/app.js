@@ -633,6 +633,10 @@ function setBusy(b) {
   $("stop").disabled = !b;
   $("gif").disabled = b || !st.gif;
   $("fire").textContent = b ? "GOOSE IN FLIGHT" : "FIRE THE GOOSE";
+  const runName = st.mode === 1 ? "Wall check" : "Panel run";
+  $("runStatus").textContent = b
+    ? `${runName} active. Press Escape or Stop and reset to stop.`
+    : st.phase === "done" ? `${runName} complete. Results appear below.` : "";
   for (const el of document.querySelectorAll("#presets input, #speed, #speedNumber, #snap")) el.disabled = b;
   if (focusStop) $("stop").focus({ preventScroll: true });
   if (focusFire) $("fire").focus({ preventScroll: true });
@@ -653,6 +657,7 @@ function stopRun() {
   $("bubble").hidden = true;
   preview();
   setBusy(false);
+  $("runStatus").textContent = "Run stopped. Goose reset.";
   $("banner").textContent = "Run stopped. Goose reset. Select a speed or resolution, then press FIRE.";
 }
 
@@ -1022,6 +1027,7 @@ function buildPresets() {
 function preview() {
   setupRun(0);
   st.phase = "idle";
+  $("runStatus").textContent = "";
   $("verdict").hidden = true;
   $("banner").textContent = "Goose loaded. Goose is unaware. Press FIRE.";
 }
