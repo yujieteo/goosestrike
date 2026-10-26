@@ -21,6 +21,7 @@ const PRESETS = [
 ];
 
 const $ = (id) => document.getElementById(id);
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const fmt = (x, d = 1) => x.toLocaleString("en-GB", { minimumFractionDigits: d, maximumFractionDigits: d });
 const sign = (x, d = 1) => (x > 0 ? "+" : x < 0 ? "−" : "") + fmt(Math.abs(x), d);
 
@@ -738,7 +739,7 @@ function wallCheck() {
   st.phase = "wall";
   startGif();
   $("verdict").hidden = true;
-  $("wallChart").scrollIntoView({ behavior: "smooth", block: "center" });
+  $("wallChart").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
   setBusy(true);
   honk(0.8);
 }
@@ -959,7 +960,7 @@ async function loadCode() {
 // scrolls the source pane to the first function of phase k
 function scrollCode(k) {
   const el = code.lines[code.ranges[k][1]?.[0] ?? code.ranges[k][0][0]];
-  $("code").scrollTo({ top: el.offsetTop - $("code").offsetTop - 8, behavior: "smooth" });
+  $("code").scrollTo({ top: el.offsetTop - $("code").offsetTop - 8, behavior: reducedMotion.matches ? "instant" : "smooth" });
 }
 
 function codeView(now) {
