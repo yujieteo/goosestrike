@@ -592,7 +592,7 @@ function setBusy(b) {
   $("wilbeck").disabled = b;
   $("gif").disabled = b || !st.gif;
   $("fire").textContent = b ? "GOOSE IN FLIGHT" : "FIRE THE GOOSE";
-  for (const el of document.querySelectorAll("#presets input, #speed")) el.disabled = b;
+  for (const el of document.querySelectorAll("#presets input, #speed, #snap")) el.disabled = b;
 }
 
 // Runs the solver one phase at a time for BUDGET_MS. A frame can end in the
@@ -923,10 +923,9 @@ function showSpeed() {
   sc.className = "hint " + (on ? "ok" : "off");
   sc.innerHTML = on
     ? "On spec: 4 lb at V<sub>C</sub> = 350 KCAS, sea level. 14 CFR 25.571(e)(1)."
-    : `Off spec: the rule asks for V<sub>C</sub> = ${fmt(V_C, 2)} m/s. <a href="#" id="snap">Snap to V<sub>C</sub></a>. Science continues anyway.`;
+    : `Off spec: the rule asks for V<sub>C</sub> = ${fmt(V_C, 2)} m/s. <button type="button" id="snap">Snap to V<sub>C</sub></button>. Science continues anyway.`;
   const snap = $("snap");
-  if (snap) snap.onclick = (e) => {
-    e.preventDefault();
+  if (snap) snap.onclick = () => {
     st.speed = V_C; $("speed").value = V_C; showSpeed();
     if (st.phase === "idle") preview();
   };

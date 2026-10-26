@@ -97,6 +97,7 @@ button[aria-pressed="true"]:hover:not(:disabled) { color: var(--bg); background:
 .hint { margin: 4px 0 0; font-size: 0.85rem; color: var(--muted); }
 .hint.ok { color: var(--good); }
 .hint.off { color: var(--bad); }
+#snap { font: inherit; color: inherit; border: 0; border-radius: 0; padding: 0; text-decoration: underline; text-underline-offset: 0.2em; }
 
 .presets { margin: 1rem 0 0; border: 0; border-top: 1px solid var(--line); padding: 0.75rem 0 0; }
 .presets legend { font-weight: 500; padding: 0; float: left; width: 100%; margin-bottom: 4px; }
