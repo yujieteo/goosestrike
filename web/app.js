@@ -1147,7 +1147,9 @@ for (const event of ["pointerup", "pointercancel", "lostpointercapture"]) {
 canvas.addEventListener("wheel", (e) => {
   if (st.pov || e.ctrlKey || e.metaKey) return;
   e.preventDefault();
-  zoom(Math.exp(e.deltaY * 0.001));
+  // Camera scale: 16 CSS pixels per wheel line, one view height per page.
+  const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? canvas.clientHeight : 1;
+  zoom(Math.exp(e.deltaY * unit * 0.001));
 }, { passive: false });
 
 loadCode().catch(() => {
