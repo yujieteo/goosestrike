@@ -1069,7 +1069,12 @@ function showMute() {
 }
 $("btnCostume").onclick = () => { st.costume = !st.costume; $("btnCostume").setAttribute("aria-pressed", String(st.costume)); };
 $("btnPov").onclick = () => { st.pov = !st.pov; $("btnPov").setAttribute("aria-pressed", String(st.pov)); showZoom(); };
-$("btnReset").onclick = () => { st.yaw = 1.0; st.pitch = 0.25; st.dist = 1.3; st.pov = false; $("btnPov").setAttribute("aria-pressed", "false"); showZoom(); };
+function resetCamera() {
+  st.yaw = 1.0; st.pitch = 0.25; st.dist = 1.3; st.pov = false;
+  $("btnPov").setAttribute("aria-pressed", "false");
+  showZoom();
+}
+$("btnReset").onclick = resetCamera;
 $("btnZoomIn").onclick = () => zoom(1 / 1.2);
 $("btnZoomOut").onclick = () => zoom(1.2);
 
@@ -1098,7 +1103,13 @@ function rotate(dx, dy) {
 }
 
 canvas.addEventListener("keydown", (e) => {
-  if (e.altKey || e.ctrlKey || e.metaKey || st.pov) return;
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  if (e.key === "Home") {
+    e.preventDefault();
+    resetCamera();
+    return;
+  }
+  if (st.pov) return;
   if (e.key === "+" || e.key === "-") {
     e.preventDefault();
     zoom(e.key === "+" ? 1 / 1.2 : 1.2);
