@@ -1079,6 +1079,11 @@ function rotate(dx, dy) {
 
 canvas.addEventListener("keydown", (e) => {
   if (e.altKey || e.ctrlKey || e.metaKey || st.pov) return;
+  if (e.key === "+" || e.key === "-") {
+    e.preventDefault();
+    zoom(e.key === "+" ? 1 / 1.2 : 1.2);
+    return;
+  }
   const turns = { ArrowLeft: [-0.1, 0], ArrowRight: [0.1, 0], ArrowUp: [0, -0.1], ArrowDown: [0, 0.1] };
   const turn = turns[e.key];
   if (!turn) return;
