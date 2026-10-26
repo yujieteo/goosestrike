@@ -685,6 +685,7 @@ function wallCheck() {
 }
 
 function wallSample() {
+  st.peakF = Math.max(st.peakF, eng.contactForce());
   const w = st.wall, tc = eng.tContact();
   if (tc < 0) return;
   const t = eng.time() - tc, p = eng.centerForce() / w.area;
@@ -745,6 +746,7 @@ function frame(now) {
   } else if (st.phase === "wall") {
     stepSolver(1.5 * st.wall.tl, wallSample);
     readState();
+    telemetry();
     banner.textContent = `CONTROL EXPERIMENT: goose vs. rigid wall · ${fmt(eng.time() * 1e6, 0)} µs · colour = pressure`;
     drawWallChart();
     if (eng.time() >= 1.5 * st.wall.tl) { st.phase = "done"; st.solverPhase = -1; st.gifHold = true; setBusy(false); }
