@@ -71,7 +71,8 @@ function medianCut(hist, n) {
     });
     if (bi < 0) break;
     const b = boxes[bi].sort((p, q) => ch(p, axis) - ch(q, axis));
-    let total = 0, half = 0, cut = 1;
+    // cut where half the pixels are below; when the heaviest colour is last, it goes alone
+    let total = 0, half = 0, cut = b.length - 1;
     for (const c of b) total += hist[c];
     for (let i = 0; i < b.length - 1; i++) { half += hist[b[i]]; if (half >= total / 2) { cut = i + 1; break; } }
     boxes.splice(bi, 1, b.slice(0, cut), b.slice(cut));
