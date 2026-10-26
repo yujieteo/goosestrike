@@ -183,6 +183,7 @@ function setupRun(mode) {
   const pr = PRESETS[st.preset];
   eng.setup(mode, pr.cells, pr.spacing, st.speed);
   st.mode = mode;
+  legend();
   readState();
   st.elems = eng.elements();
   st.skinNe = mode === 0 ? skinElements(pr.cells) : 0;
@@ -828,7 +829,6 @@ function frame(now) {
   } else if (st.phase === "done") {
     banner.textContent = "Done. Drag to orbit. Scroll to zoom. Fire again for another goose.";
   }
-  legend();
   if (st.nodes) render(offsetZ, flap);
   captureGif(now);
   codeView(now);
@@ -1075,7 +1075,11 @@ function showMute() {
   $("mute").setAttribute("aria-pressed", String(st.muted));
   $("mute").textContent = st.muted ? "🔇 Honks off" : "🔊 Honks on";
 }
-$("btnCostume").onclick = () => { st.costume = !st.costume; $("btnCostume").setAttribute("aria-pressed", String(st.costume)); };
+$("btnCostume").onclick = () => {
+  st.costume = !st.costume;
+  $("btnCostume").setAttribute("aria-pressed", String(st.costume));
+  legend();
+};
 $("btnPov").onclick = () => { drag = null; st.pov = !st.pov; $("btnPov").setAttribute("aria-pressed", String(st.pov)); showZoom(); };
 function resetCamera() {
   drag = null;
