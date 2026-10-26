@@ -68,13 +68,12 @@
     <h2>The Goose code that runs</h2>
     <p class="hint">The page runs each time step of <code>sim/strike.goose</code> in five phases, one call to
       <code>step_phase</code> each. The lit lines are the phase that ran last, as the solver reports it.
-      The percentages are the share of the solver time in each phase in this run. <span id="codeState"></span></p>
+      The source scrolls to the phase that runs, at most once a second. <span id="codeState"></span></p>
     <ol class="phases" id="phases"></ol>
     <div class="panes">
       <pre id="step" class="source short" aria-label="run_phase in sim/strike.goose"></pre>
       <pre id="code" class="source" aria-label="Source of sim/strike.goose"></pre>
     </div>
-    <label class="hint"><input type="checkbox" id="follow" checked> Scroll the source to the phase that runs</label>
   </section>
 
   <section class="verdict" id="verdict" hidden></section>

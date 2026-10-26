@@ -48,7 +48,6 @@ const st = {
   frameSim: 0, frameReal: 16.7, msPerStep: 0,
   splatted: false,
   solverPhase: -1,        // the solver phase that ran last (run_phase in strike.goose)
-  prof: new Float64Array(5), // real time in each phase in this run, ms
   gif: null,              // the GIF recorder of the last run
   gifHold: false,         // the run ended: the next GIF frame is the last
 };
@@ -173,7 +172,6 @@ function setupRun(mode) {
   st.peakF = 0;
   st.hist = [];
   st.splatted = false;
-  st.prof.fill(0);
   st.solverPhase = -1;
   paintGoose();
 }
@@ -604,9 +602,7 @@ function stepSolver(tEnd, perStep) {
   while (t - t0 < BUDGET_MS) {
     const k = eng.stepPhase(tEnd);
     if (k < 0) break;
-    const t1 = performance.now();
-    st.prof[k] += t1 - t;
-    t = t1;
+    t = performance.now();
     st.solverPhase = k;
     if (k === 4) { steps++; if (perStep) perStep(); }
   }
@@ -778,6 +774,7 @@ function startGif() {
   st.gif.cv.width = GIF_W; st.gif.cv.height = h + 28;
   st.gifHold = false;
   $("gif").disabled = true;
+  $("gif").textContent = "Export GIF";
 }
 
 function captureGif(now) {
@@ -880,7 +877,7 @@ async function loadCode() {
   $("code").innerHTML = lines.map((_, i) => html(i)).join("");
   code.step = { first: r0, lines: $("step").children };
   code.lines = $("code").children;
-  $("phases").innerHTML = PHASES.map((ph, k) => `<li><button data-k="${k}"><span>${k}</span> ${ph.name}<small></small></button></li>`).join("");
+  $("phases").innerHTML = PHASES.map((ph, k) => `<li><button data-k="${k}"><span>${k}</span> ${ph.name}</button></li>`).join("");
   code.chips = [...$("phases").querySelectorAll("button")];
   for (const b of code.chips) b.onclick = () => scrollCode(+b.dataset.k);
 }
@@ -895,13 +892,9 @@ function codeView(now) {
   if (!code.lines || now - code.last < 120) return;   // a readable rate
   code.last = now;
   const k = st.phase === "sim" || st.phase === "wall" ? st.solverPhase : -1;
-  const total = st.prof.reduce((a, b) => a + b, 0);
-  code.chips.forEach((b, i) => {
-    b.classList.toggle("on", i === k);
-    b.querySelector("small").textContent = total > 0 ? `${fmt(st.prof[i] / total * 100, 0)} %` : "";
-  });
+  code.chips.forEach((b, i) => b.classList.toggle("on", i === k));
   // the source pane moves at most once a second, so that the eye can follow
-  if (k >= 0 && k !== code.scrolledK && $("follow").checked && now - code.scrolled > 1000) {
+  if (k >= 0 && k !== code.scrolledK && now - code.scrolled > 1000) {
     scrollCode(k); code.scrolled = now; code.scrolledK = k;
   }
   if (k === code.shown) return;

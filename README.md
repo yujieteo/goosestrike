@@ -141,7 +141,7 @@ The 9 mm mesh is the fast default. The trade: its peak pressure is 43 % low, its
 
 - The code view shows `web/strike.goose`, the copy of `sim/strike.goose` that `build.sh` writes.
   The page runs each time step in five phases, one call of the wasm export `step_phase` each: time step, SPH bird, shells (with plasticity and erosion), contact and integration.
-  `run_phase` in the source has the five phases. The lit lines are the phase that ran last, as `step_phase` returns it, and the page measures the time in each phase.
+  `run_phase` in the source has the five phases. The lit lines are the phase that ran last, as `step_phase` returns it. The source scrolls to that phase, at most once a second.
   A test checks that the phases one at a time give the same result as whole steps.
 - "Export GIF" saves the last run as an animated GIF, 480 px wide: about ten frames a second of the approach, then one frame each 25 µs of simulated time.
   Each frame has a caption with the time and the colour bar. The encoder is `web/gif.mjs` (median cut palette, LZW), with no dependency.
