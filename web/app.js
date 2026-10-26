@@ -642,14 +642,18 @@ function setBusy(b) {
   if (focusFire) $("fire").focus({ preventScroll: true });
 }
 
+function clearWallChart() {
+  const chart = $("wallChart");
+  chartResize.unobserve(chart);
+  chartData.delete(chart);
+  chart.getContext("2d").clearRect(0, 0, chart.width, chart.height);
+}
+
 function stopRun() {
   if (st.phase !== "approach" && st.phase !== "sim" && st.phase !== "wall") return;
   if (st.mode === 1) {
     st.wall = null;
-    const chart = $("wallChart");
-    chartResize.unobserve(chart);
-    chartData.delete(chart);
-    chart.getContext("2d").clearRect(0, 0, chart.width, chart.height);
+    clearWallChart();
     $("wilbeckOut").textContent = "Wall check stopped. No result.";
   }
   st.gif = null;
@@ -743,6 +747,8 @@ function wallCheck() {
   const [ph, us] = hugoniot(v);
   st.wall = { ph, us, ps: stagnation(v), tl: eng.birdL() / v, area: Math.PI * eng.sensorR() ** 2, xs: [], ys: [], peak: 0, plat: 0, platN: 0 };
   st.phase = "wall";
+  clearWallChart();
+  $("wilbeckOut").textContent = "Wall check active. No result yet.";
   startGif();
   $("verdict").hidden = true;
   $("wallChart").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
