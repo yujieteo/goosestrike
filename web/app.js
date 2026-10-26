@@ -171,11 +171,14 @@ function setupRun(mode) {
   st.ke0 = eng.birdKE();
   $("energyTitle").textContent = `Goose energy at start: ${fmt(st.ke0 / 1e3, 1)} kJ`;
   st.peakF = 0;
+  st.frameSim = 0;
+  st.msPerStep = 0;
   st.hist = [];
   st.splatted = false;
   st.solverPhase = -1;
   paintGoose();
   drawForceChart();
+  telemetry();
 }
 
 // ---------------------------------------------------------------------------
@@ -623,8 +626,6 @@ function stopRun() {
   }
   st.gif = null;
   st.gifHold = false;
-  st.frameSim = 0;
-  st.msPerStep = 0;
   $("bubble").hidden = true;
   preview();
   setBusy(false);
@@ -984,7 +985,6 @@ function preview() {
   setupRun(0);
   st.phase = "idle";
   $("verdict").hidden = true;
-  telemetry();
   $("banner").textContent = "Goose loaded. Goose is unaware. Press FIRE.";
 }
 
