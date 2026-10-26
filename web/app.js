@@ -702,7 +702,12 @@ function telemetry() {
     ["bird", `${fmt(eng.np(), 0)} particles, ${fmt(BIRD_MASS, 3)} kg`],
     ["panel", `${fmt(eng.nn(), 0)} nodes, ${fmt(eng.ne(), 0)} shells`],
   ];
-  $("tele").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+  const tele = $("tele");
+  if (!tele.children.length) tele.innerHTML = rows.map(([k]) => `<dt>${k}</dt><dd></dd>`).join("");
+  rows.forEach(([, v], i) => {
+    const cell = tele.children[2 * i + 1];
+    if (cell.textContent !== v) cell.textContent = v;
+  });
   $("honkBar").style.width = `${Math.min(100, eng.contactForce() / 3e5 * 100)}%`;
 
   const parts = [
