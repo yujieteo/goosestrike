@@ -958,8 +958,21 @@ function showMute() {
   $("mute").textContent = st.muted ? "🔇 Honks off" : "🔊 Honks on";
 }
 $("btnCostume").onclick = () => { st.costume = !st.costume; $("btnCostume").setAttribute("aria-pressed", String(st.costume)); };
-$("btnPov").onclick = () => { st.pov = !st.pov; $("btnPov").setAttribute("aria-pressed", String(st.pov)); };
-$("btnReset").onclick = () => { st.yaw = 1.0; st.pitch = 0.25; st.dist = 1.3; st.pov = false; $("btnPov").setAttribute("aria-pressed", "false"); };
+$("btnPov").onclick = () => { st.pov = !st.pov; $("btnPov").setAttribute("aria-pressed", String(st.pov)); showZoom(); };
+$("btnReset").onclick = () => { st.yaw = 1.0; st.pitch = 0.25; st.dist = 1.3; st.pov = false; $("btnPov").setAttribute("aria-pressed", "false"); showZoom(); };
+$("btnZoomIn").onclick = () => zoom(1 / 1.2);
+$("btnZoomOut").onclick = () => zoom(1.2);
+
+function showZoom() {
+  $("btnZoomIn").disabled = st.pov || st.dist <= 0.4;
+  $("btnZoomOut").disabled = st.pov || st.dist >= 5;
+}
+
+function zoom(factor) {
+  if (st.pov) return;
+  st.dist = Math.max(0.4, Math.min(5, st.dist * factor));
+  showZoom();
+}
 
 let drag = null;
 canvas.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); });
@@ -972,7 +985,7 @@ canvas.addEventListener("pointermove", (e) => {
 canvas.addEventListener("pointerup", () => { drag = null; });
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
-  st.dist = Math.max(0.4, Math.min(5, st.dist * Math.exp(e.deltaY * 0.001)));
+  zoom(Math.exp(e.deltaY * 0.001));
 }, { passive: false });
 
 loadCode();

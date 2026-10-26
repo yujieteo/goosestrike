@@ -45,7 +45,7 @@ main > section { border-top: 1px solid var(--ink); padding-top: 1.25rem; }
 #view { display: block; width: 100%; height: 100%; min-height: 480px; touch-action: none; cursor: grab; }
 #view:active { cursor: grabbing; }
 
-.viewbar { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+.viewbar { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
 .banner {
   position: absolute; left: 14px; top: 12px; right: 14px;
   font: 500 13px var(--mono); color: var(--ink);
@@ -76,7 +76,7 @@ button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent);
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 button[aria-pressed="true"]:hover:not(:disabled) { color: var(--bg); background: var(--accent); }
-.viewbar button { background: #f4f1eae6; }
+.viewbar button { background: #f4f1eae6; min-height: 44px; }
 .viewbar button[aria-pressed="true"] { background: var(--ink); }
 
 .cannon { display: flex; gap: 8px; align-items: stretch; }
