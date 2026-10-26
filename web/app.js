@@ -785,7 +785,7 @@ function frame(now) {
   if (st.phase === "approach") {
     const s = Math.min(1, (now - st.t0) / 1000 / APPROACH_S);
     offsetZ = APPROACH_M * (1 - s);
-    flap = Math.sin(now / 70);
+    flap = reducedMotion.matches ? 0 : Math.sin(now / 70);
     banner.textContent = `APPROACH: cartoon, not simulated (the real ${fmt(APPROACH_M, 1)} m takes ${fmt(APPROACH_M / st.speed * 1e3, 1)} ms at ${fmt(st.speed, 1)} m/s)`;
     if (s >= 1) st.phase = "sim";
   } else if (st.phase === "sim") {
