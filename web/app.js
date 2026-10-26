@@ -169,6 +169,7 @@ function setupRun(mode) {
   st.skinNe = mode === 0 ? skinElements(pr.cells) : 0;
   st.init = st.parts.slice();
   st.ke0 = eng.birdKE();
+  $("energyTitle").textContent = `Goose energy at start: ${fmt(st.ke0 / 1e3, 1)} kJ`;
   st.peakF = 0;
   st.hist = [];
   st.splatted = false;
