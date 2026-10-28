@@ -16,7 +16,7 @@ python3 -m http.server -d web 8000
 ```
 
 The repository has the built `web/strike.wasm` and `web/strike-gpu.wasm`, so the page needs no build step.
-The page uses the GPU solver if the browser has WebGPU, else the CPU solver. Add `?solver=cpu` to the URL to use the CPU solver.
+The page uses the GPU solver if the browser has WebGPU and the GPU solver starts, else the CPU solver. Add `?solver=cpu` to the URL to use the CPU solver.
 This is not a certification analysis. The page and this README say where the model is coarse.
 
 ## The load case
