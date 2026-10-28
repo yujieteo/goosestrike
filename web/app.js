@@ -839,6 +839,17 @@ function drawWallChart() {
 let lastFrame = performance.now();
 const solve = eng.gpu ? gpuStep : stepSolver;
 function frame(now) {
+  try {
+    drawFrame(now);
+  } catch (error) {
+    console.error(error);
+    stopRun();
+    $("banner").textContent = "The solver failed. Run stopped. Reload the page to try again.";
+  }
+  requestAnimationFrame(frame);
+}
+
+function drawFrame(now) {
   st.frameReal = now - lastFrame;
   st.fps += 0.05 * (1000 / Math.max(st.frameReal, 1) - st.fps);
   lastFrame = now;
@@ -883,7 +894,6 @@ function frame(now) {
   if (st.nodes) render(offsetZ, flap);
   captureGif(now);
   codeView(now);
-  requestAnimationFrame(frame);
 }
 
 function legend() {

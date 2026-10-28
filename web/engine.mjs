@@ -110,15 +110,19 @@ export async function loadGpuEngine(gpu = globalThis.navigator?.gpu) {
   dv.setBigInt64(4, BigInt(wgsl.length), true);
   const errors = [];
   device.addEventListener("uncapturederror", (e) => errors.push(e.error.message));
-  const ok = m._gpu_init(sl);
+  // The kernels compile and bind (in a set-up of the smallest run), or
+  // loadGpuEngine throws.
+  device.pushErrorScope("validation");
+  device.pushErrorScope("internal");
+  const ok = m._gpu_init(sl) && m._gpu_setup(0, 56, 0.009, V_C);
   m._free(sl); m._free(src);
-  if (!ok) throw new Error("the WebGPU solver did not start");
+  const internal = await device.popErrorScope(), validation = await device.popErrorScope();
+  const failure = internal || validation;
+  if (!ok || failure) throw new Error(`the WebGPU solver did not start${failure ? `: ${failure.message}` : ""}`);
   const base = common(m);
-  const info = adapter.info || {};
   return {
     ...base,
     gpu: true,
-    adapter: [info.vendor, info.architecture, info.description].filter(Boolean).join(" "),
     // the WebGPU validation errors so far
     errors,
     // as setup of the CPU engine
@@ -144,7 +148,6 @@ export async function loadGpuEngine(gpu = globalThis.navigator?.gpu) {
     // Node's webgpu package stops the device when its GPU object is
     // collected, so the engine keeps it.
     gpuObject: gpu,
-    destroy: () => device.destroy(),
   };
 }
 
