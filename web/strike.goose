@@ -39,7 +39,7 @@ let GAMMA_TAIT = 7.0;       // Tait exponent for water
 let R_FUS = 1.975;          // fuselage outer radius, m (3.95 m width)
 let PANEL_LX = 1.0668;      // axial length: two 21 in frame bays, m
 let PANEL_LS = 0.760;       // arc length: four 190 mm stringer bays, m
-let T_SKIN = 0.0016;        // 0.063 in skin
+let T_SKIN = 0.0016;        // 0.063 in skin, the default of t_skin
 let STR_H = 0.0254;         // stringer web height
 let STR_F = 0.015;          // stringer free flange width
 let T_STR = 0.0016;
@@ -72,6 +72,7 @@ var gp_w: f64[5] = [0.236926885056189, 0.478628670499366, 0.568888888888889, 0.4
 
 // ---- state ----
 var mode: i64 = 0;          // 0: panel, 1: rigid wall at z = 0
+var t_skin: f64 = T_SKIN;   // skin thickness, m (set_skin)
 var sim_time: f64 = 0.0;
 var dt: f64 = 0.0;
 var dt_prev: f64 = 0.0;
@@ -211,7 +212,7 @@ fn build_panel(gx: i64, gs: i64) {
     for j in 0..gs {
         for i in 0..gx {
             let a = j * (gx + 1) + i;
-            add_elem(a, a + 1, a + gx + 2, a + gx + 1, T_SKIN, 0);
+            add_elem(a, a + 1, a + gx + 2, a + gx + 1, t_skin, 0);
         }
     }
     let he = 0.5 * (dxe + dse);
@@ -343,6 +344,10 @@ fn build_bird(spacing: f64, speed: f64, nose_z: f64) {
 // ---------------------------------------------------------------------------
 // set-up
 
+// The skin thickness of the next set-up, m. The stringers and frames keep
+// theirs.
+export fn set_skin(t: f64) { t_skin = t; }
+
 // mode 0: the panel; mode 1: a rigid wall at z = 0.
 // cells: skin elements along x (a multiple of 8). spacing: bird lattice, m.
 export fn setup(m: i32, cells: i32, spacing: f64, speed: f64) -> i32 {
@@ -364,7 +369,7 @@ export fn setup(m: i32, cells: i32, spacing: f64, speed: f64) -> i32 {
         let gx = (cells / 8 * 8) as i64;
         let gs = (gx * PANEL_LS / PANEL_LX / 8.0 + 0.5) as i64 * 8;
         build_panel(gx, gs);
-        top = 0.5 * T_SKIN;
+        top = 0.5 * t_skin;
     }
     for i in 0..3 * nn {
         nx0[i] = nx[i]; nv[i] = 0.0; nw[i] = 0.0;
@@ -736,7 +741,7 @@ fn bin_elements() {
         rmax = max(rmax, r);
     }
     // a particle in contact lies within erad + gap of the centroid
-    ecs = rmax + prad + 0.5 * T_FRM + 1.0e-4;
+    ecs = rmax + prad + 0.5 * max(t_skin, T_FRM) + 1.0e-4;
     for e in 0..ne {
         if efail[e] != 0 { continue; }
         let ci = cell_of(ecen[3 * e], ecs);

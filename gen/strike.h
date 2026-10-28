@@ -76,9 +76,10 @@ struct ByteSet_g {
 extern "C" {
 #endif
 void goose_init(int argc, char **argv);
-int32_t setup(int32_t gs_export_arg0, int32_t gs_export_arg1, double gs_export_arg2, double gs_export_arg3);
-int32_t advance(int32_t gs_export_arg0_2, double gs_export_arg1_2);
-int32_t step_phase(double gs_export_arg0_3);
+void set_skin(double gs_export_arg0);
+int32_t setup(int32_t gs_export_arg0_2, int32_t gs_export_arg1, double gs_export_arg2, double gs_export_arg3);
+int32_t advance(int32_t gs_export_arg0_3, double gs_export_arg1_2);
+int32_t step_phase(double gs_export_arg0_4);
 double get_time(void);
 double get_dt(void);
 int32_t get_steps(void);
@@ -103,16 +104,16 @@ int32_t get_failed(void);
 int32_t get_failed_skin(void);
 double get_max_ep(void);
 double get_max_defl(void);
-double get_eps_fail(int32_t gs_export_arg0_4);
+double get_eps_fail(int32_t gs_export_arg0_5);
 double get_bird_ke(void);
 double get_panel_ke(void);
 double get_panel_mass(void);
 int32_t fill_render(void);
-const uint8_t * buf_nodes(int64_t *gs_export_len_33);
-const uint8_t * buf_particles(int64_t *gs_export_len_34);
-const uint8_t * buf_pressure(int64_t *gs_export_len_35);
-const uint8_t * buf_strain(int64_t *gs_export_len_36);
-const uint8_t * buf_elements(int64_t *gs_export_len_37);
+const uint8_t * buf_nodes(int64_t *gs_export_len_34);
+const uint8_t * buf_particles(int64_t *gs_export_len_35);
+const uint8_t * buf_pressure(int64_t *gs_export_len_36);
+const uint8_t * buf_strain(int64_t *gs_export_len_37);
+const uint8_t * buf_elements(int64_t *gs_export_len_38);
 #ifdef __cplusplus
 }
 #endif

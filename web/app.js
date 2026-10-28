@@ -1,5 +1,7 @@
-// The page: runs the Goose solver (WebAssembly) frame by frame and draws it.
-import { loadEngine, hugoniot, stagnation, V_C, BIRD_MASS } from "./engine.mjs";
+// The page: runs the Goose solver frame by frame and draws it. The solver
+// runs on the GPU (WebGPU) where the browser can, else on the CPU
+// (WebAssembly). The URL ?solver=cpu selects the CPU.
+import { loadEngine, loadGpuEngine, hugoniot, stagnation, V_C, BIRD_MASS, T_SKIN } from "./engine.mjs";
 import { GifRecorder } from "./gif.mjs";
 
 const KT = 1852 / 3600;            // m/s per knot
@@ -12,14 +14,6 @@ const EP_MAX = 0.18;               // plastic strain colour scale
 const GIF_W = 480;                 // GIF width, px
 const GIF_SIM_US = 25;             // sim time between GIF frames, µs
 
-// Bird lattice and skin cells per preset, and what validate.goose measured
-// with them natively (rigid wall check and the panel at V_C).
-const PRESETS = [
-  { name: "Potato goose", spacing: 0.009, cells: 56, peak: -42.6, plateau: 25.8, defl: 150.8, skin: 0, stiff: 36, run: "10 s" },
-  { name: "Good goose", spacing: 0.006, cells: 88, peak: 0.9, plateau: 27.7, defl: 152.1, skin: 8, stiff: 62, run: "35 s" },
-  { name: "Very good goose", spacing: 0.0045, cells: 112, peak: 2.7, plateau: 13.1, defl: 152.9, skin: 25, stiff: 152, run: "2 min" },
-];
-
 const $ = (id) => document.getElementById(id);
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const fmt = (x, d = 1) => x.toLocaleString("en-GB", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -27,7 +21,9 @@ const sign = (x, d = 1) => (x > 0 ? "+" : x < 0 ? "−" : "") + fmt(Math.abs(x),
 
 let eng;
 try {
-  eng = await loadEngine();
+  const cpu = new URLSearchParams(location.search).get("solver") === "cpu";
+  eng = cpu ? null : await loadGpuEngine().catch((error) => { console.warn("WebGPU solver:", error); return null; });
+  eng ??= await loadEngine();
 } catch (error) {
   $("fire").textContent = "GOOSE UNAVAILABLE";
   $("banner").setAttribute("role", "alert");
@@ -35,11 +31,25 @@ try {
   throw error;
 }
 
+// Bird lattice and skin cells per preset, and what validate.goose measured
+// with them natively (rigid wall check and the panel at V_C, 1.6 mm skin).
+// run: the solver time of the panel run on the CPU, on an idle M-series Mac.
+// gpuRun: the time of the run on the GPU in Chrome on an Apple M5, with a high
+// load from other work. The last preset is too slow for the CPU, so only the
+// GPU has it.
+const PRESETS = [
+  { name: "Potato goose", spacing: 0.009, cells: 56, peak: -42.6, plateau: 25.8, defl: 150.8, skin: 0, stiff: 36, run: "10 s", gpuRun: "1 to 2 s" },
+  { name: "Good goose", spacing: 0.006, cells: 88, peak: 0.9, plateau: 27.7, defl: 152.1, skin: 8, stiff: 62, run: "35 s", gpuRun: "4 to 6 s" },
+  { name: "Very good goose", spacing: 0.0045, cells: 112, peak: 2.7, plateau: 13.1, defl: 152.9, skin: 25, stiff: 152, run: "2 min", gpuRun: "10 to 12 s" },
+  { name: "Excellent goose", spacing: 0.0035, cells: 144, peak: 11.3, plateau: 3.2, defl: 228.1, skin: 249, stiff: 191, gpuRun: "20 to 60 s", gpu: true },
+].filter((p) => eng.gpu || !p.gpu);
+
 const st = {
   phase: "idle",          // idle | approach | sim | done | wall
   mode: 0,                // 0: panel, 1: rigid wall
   preset: 0,
   speed: V_C,
+  tSkin: T_SKIN,          // skin thickness, m
   costume: true,
   pov: false,
   muted: false,
@@ -54,7 +64,8 @@ const st = {
   anchors: null,
   hist: [],
   wall: null,
-  frameSim: 0, frameReal: 16.7, msPerStep: 0,
+  frameSim: 0, frameReal: 16.7, msPerStep: 0, fps: 60,
+  batch: null,            // the GPU batches of this set-up (gpuStep)
   splatted: false,
   solverPhase: -1,        // the solver phase that ran last (run_phase in strike.goose)
   gif: null,              // the GIF recorder of the last run
@@ -181,7 +192,9 @@ function skinElements(cells) {
 
 function setupRun(mode) {
   const pr = PRESETS[st.preset];
+  eng.setSkin(st.tSkin);
   eng.setup(mode, pr.cells, pr.spacing, st.speed);
+  st.batch = { seen: 0, steps: 16 };
   st.mode = mode;
   legend();
   readState();
@@ -638,7 +651,7 @@ function setBusy(b) {
   $("runStatus").textContent = b
     ? `${runName} active. Press Escape or Stop and reset to stop.`
     : st.phase === "done" ? `${runName} complete. Results appear below.` : "";
-  for (const el of document.querySelectorAll("#presets input, #speed, #speedNumber, #snap")) el.disabled = b;
+  for (const el of document.querySelectorAll("#presets input, #speed, #speedNumber, #snap, #skin")) el.disabled = b;
   if (focusStop) $("stop").focus({ preventScroll: true });
   if (focusFire) $("fire").focus({ preventScroll: true });
 }
@@ -676,11 +689,36 @@ function stepSolver(tEnd, perStep) {
     if (k < 0) break;
     t = performance.now();
     st.solverPhase = k;
-    if (k === 4) { steps++; if (perStep) perStep(); }
+    if (k === 4) { steps++; perStep(eng.time(), eng.contactForce(), eng.centerForce()); }
   }
   const ms = t - t0;
   st.msPerStep = steps ? ms / steps : 0;
   st.frameSim = eng.time() - s0;
+  return eng.time() >= tEnd;
+}
+
+// The GPU solver runs whole steps in batches, and two batches can wait for
+// their read-back at the same time. So the GPU does the next batch while the
+// page reads the last one. Each frame takes the results that are in and
+// sends new batches. The batch gets larger when both batches were in (the
+// GPU had no work), and smaller when none was in. Returns true when the run
+// reached tEnd.
+function gpuStep(tEnd, perStep) {
+  const b = st.batch, s0 = eng.time();
+  let got = 0, steps = 0, r;
+  while ((r = eng.poll()) === 1) got++;
+  if (r < 0) throw new Error("the GPU read-back failed");
+  if (got) {
+    const h = eng.history();
+    steps = h.length / 4 - b.seen;
+    for (; b.seen < h.length / 4; b.seen++) perStep(h[4 * b.seen], h[4 * b.seen + 1], h[4 * b.seen + 2]);
+    if (steps) { st.msPerStep = st.frameReal / steps; st.frameSim = eng.time() - s0; }
+  }
+  if (got === 2) b.steps = Math.min(512, Math.ceil(b.steps * 1.5));
+  if (got === 0 && eng.pending() === 2) b.steps = Math.max(8, Math.floor(b.steps * 0.8));
+  if (!eng.running()) return eng.pending() === 0;
+  while (eng.run(b.steps, tEnd));
+  return false;
 }
 
 function telemetry() {
@@ -691,7 +729,8 @@ function telemetry() {
     ["time step dt", `${fmt(eng.dt() * 1e9, 1)} ns`],
     ["steps", fmt(eng.steps(), 0)],
     ["slow motion", st.frameSim > 0 ? `1 : ${fmt(st.frameReal / 1000 / st.frameSim, 0)}` : "—"],
-    ["solver", `${fmt(st.msPerStep, 2)} ms/step`],
+    ["solver", `${eng.gpu ? "GPU" : "CPU"}, ${fmt(st.msPerStep, 2)} ms/step`],
+    ["frame rate", `${fmt(st.fps, 0)} fps`],
     ["contact force", `${fmt(eng.contactForce() / 1e3, 1)} kN`],
     ["peak force", `${fmt(st.peakF / 1e3, 1)} kN`],
     ["max deflection", `${fmt(eng.maxDeflection() * 1e3, 1)} mm`],
@@ -701,6 +740,7 @@ function telemetry() {
     ["eroded stiffener shells", fmt(eng.failed() - eng.failedSkin(), 0)],
     ["bird", `${fmt(eng.np(), 0)} particles, ${fmt(BIRD_MASS, 3)} kg`],
     ["panel", `${fmt(eng.nn(), 0)} nodes, ${fmt(eng.ne(), 0)} shells`],
+    ["skin", `${fmt(st.tSkin * 1e3, 1)} mm 2024-T3`],
   ];
   const tele = $("tele");
   if (!tele.children.length) tele.innerHTML = rows.map(([k]) => `<dt>${k}</dt><dd></dd>`).join("");
@@ -731,7 +771,7 @@ function verdict() {
   v.innerHTML = `
     <div class="stamp">${breached ? "SKIN BREACHED" : "SKIN HELD"}</div>
     <h2>${breached ? "The goose tore the skin." : "The skin held. The goose did not."}</h2>
-    <p>This run: ${pr.name} at ${fmt(st.speed, 2)} m/s (${fmt(st.speed / KT, 1)} kt), ${fmt(pr.spacing * 1e3, 1)} mm bird lattice.</p>
+    <p>This run: ${pr.name} at ${fmt(st.speed, 2)} m/s (${fmt(st.speed / KT, 1)} kt), ${fmt(pr.spacing * 1e3, 1)} mm bird lattice, ${fmt(st.tSkin * 1e3, 1)} mm skin, on the ${eng.gpu ? "GPU" : "CPU"}.</p>
     <p>Eroded shell elements: ${fmt(skin, 0)} in the 2024-T3 skin, ${fmt(stiff, 0)} in the 7075-T6 stringers and frames.
       An element erodes when its plastic strain reaches the failure strain of its material. Maximum deflection ${fmt(eng.maxDeflection() * 1e3, 1)} mm.
       Peak contact force ${fmt(st.peakF / 1e3, 1)} kN. Maximum plastic strain ${fmt(eng.maxPlasticStrain() * 100, 1)} %.
@@ -739,8 +779,10 @@ function verdict() {
     <p>Does this fail 25.571(e)(1)? Not by itself. The rule accepts damage: the aeroplane must complete the flight with it.
       That needs a residual strength analysis of the damaged structure, which this page does not do.
       This is not a certification analysis.</p>
-    <p class="hint">Measured at V<sub>C</sub> only: the deflection converges with the mesh (${PRESETS.map((p) => fmt(p.defl, 1)).join(", ")} mm at ${PRESETS.map((p) => fmt(p.spacing * 1e3, 1)).join(", ")} mm).
-      The skin erosion does not (${PRESETS.map((p) => p.skin).join(", ")} skin elements): erosion depends on the element size, so a tear prediction needs a mesh-calibrated failure model.</p>`;
+    <p class="hint">Measured at V<sub>C</sub> with the 1.6 mm skin only: maximum deflection ${PRESETS.map((p) => fmt(p.defl, 1)).join(", ")} mm
+      and ${PRESETS.map((p) => p.skin).join(", ")} eroded skin elements at ${PRESETS.map((p) => fmt(p.spacing * 1e3, 1)).join(", ")} mm.
+      From 9 mm to 4.5 mm, the deflection changes by less than 2 %.${eng.gpu ? " At 3.5 mm, many more skin elements erode, a hole opens in the skin, and the deflection is 50 % larger." : ""}
+      The skin erosion does not converge: erosion depends on the element size, so a tear prediction needs a mesh-calibrated failure model.</p>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -762,11 +804,12 @@ function wallCheck() {
   honk(0.8);
 }
 
-function wallSample() {
-  st.peakF = Math.max(st.peakF, eng.contactForce());
-  const w = st.wall, tc = eng.tContact();
-  if (tc < 0) return;
-  const t = eng.time() - tc, p = eng.centerForce() / w.area;
+// one step: its end time, contact force and centre sensor force
+function wallSample(time, f, fc) {
+  st.peakF = Math.max(st.peakF, f);
+  const w = st.wall, tc = eng.tContact(), t = time - tc;
+  if (tc < 0 || t < 0) return;
+  const p = fc / w.area;
   w.xs.push(t * 1e6); w.ys.push(p / 1e6);
   if (p > w.peak) w.peak = p;
   if (t > 0.25 * w.tl && t < 0.75 * w.tl) { w.plat += p; w.platN++; }
@@ -794,8 +837,10 @@ function drawWallChart() {
 // the frame loop
 
 let lastFrame = performance.now();
+const solve = eng.gpu ? gpuStep : stepSolver;
 function frame(now) {
   st.frameReal = now - lastFrame;
+  st.fps += 0.05 * (1000 / Math.max(st.frameReal, 1) - st.fps);
   lastFrame = now;
   let offsetZ = 0, flap = 0;
   const banner = $("banner");
@@ -807,10 +852,9 @@ function frame(now) {
     bannerText = `APPROACH: cartoon, not simulated (the real ${fmt(APPROACH_M, 1)} m takes ${fmt(APPROACH_M / st.speed * 1e3, 1)} ms at ${fmt(st.speed, 1)} m/s)`;
     if (s >= 1) st.phase = "sim";
   } else if (st.phase === "sim") {
-    stepSolver(T_END, () => {
-      const f = eng.contactForce();
+    const done = solve(T_END, (t, f) => {
       st.peakF = Math.max(st.peakF, f);
-      st.hist.push({ t: eng.time(), f });
+      st.hist.push({ t, f });
     });
     readState();
     if (eng.tContact() >= 0 && !st.splatted) {
@@ -819,19 +863,19 @@ function frame(now) {
       const b = $("bubble"); b.hidden = false; b.style.animation = "none"; void b.offsetWidth; b.style.animation = "";
       setTimeout(() => { b.hidden = true; }, 900);
     }
-    bannerText = `SIMULATING in Goose → WebAssembly · t = ${fmt(eng.time() * 1e6, 0)} µs of ${fmt(T_END * 1e6, 0)} µs · goose is now a fluid`;
+    bannerText = `SIMULATING ${eng.gpu ? "on the GPU (WebGPU)" : "in Goose → WebAssembly"} · t = ${fmt(eng.time() * 1e6, 0)} µs of ${fmt(T_END * 1e6, 0)} µs · goose is now a fluid`;
     telemetry();
     drawForceChart();
-    if (eng.time() >= T_END) {
+    if (done) {
       st.phase = "done"; st.solverPhase = -1; st.gifHold = true; setBusy(false); verdict(); honk(0.7, 0.1);
     }
   } else if (st.phase === "wall") {
-    stepSolver(1.5 * st.wall.tl, wallSample);
+    const done = solve(1.5 * st.wall.tl, wallSample);
     readState();
     telemetry();
     bannerText = `CONTROL EXPERIMENT: goose vs. rigid wall · ${fmt(eng.time() * 1e6, 0)} µs · colour = pressure`;
     drawWallChart();
-    if (eng.time() >= 1.5 * st.wall.tl) { st.phase = "done"; st.solverPhase = -1; st.gifHold = true; setBusy(false); }
+    if (done) { st.phase = "done"; st.solverPhase = -1; st.gifHold = true; setBusy(false); }
   } else if (st.phase === "done") {
     bannerText = "Done. Drag to orbit. Scroll to zoom. Fire again for another goose.";
   }
@@ -987,12 +1031,16 @@ function scrollCode(k) {
 function codeView(now) {
   if (!code.lines || now - code.last < 120) return;   // a readable rate
   code.last = now;
-  const k = st.phase === "sim" || st.phase === "wall" ? st.solverPhase : -1;
+  const running = st.phase === "sim" || st.phase === "wall";
+  const k = running ? st.solverPhase : -1;
   // the source pane moves at most once a second, so that the eye can follow
   const sourceFocused = document.activeElement === $("code") || document.activeElement === $("step") || code.chips.includes(document.activeElement);
   if (!sourceFocused && k >= 0 && k !== code.scrolledK && now - code.scrolled > 1000) {
     scrollCode(k); code.scrolled = now; code.scrolledK = k;
   }
+  const state = k >= 0 ? `Phase ${k} (${PHASES[k].name}) ran last.`
+    : running && eng.gpu ? "On the GPU, the kernels of web/strike.wgsl do all five phases of each step. No line is lit." : "The solver is idle.";
+  if ($("codeState").textContent !== state) $("codeState").textContent = state;
   if (k === code.shown) return;
   code.chips.forEach((b, i) => b.classList.toggle("on", i === k));
   for (const l of $("code").querySelectorAll(".on")) l.classList.remove("on");
@@ -1003,7 +1051,6 @@ function codeView(now) {
     for (let i = a; i <= b; i++) code.step.lines[i - code.step.first].classList.add("on");
   }
   code.shown = k;
-  $("codeState").textContent = k >= 0 ? `Phase ${k} (${PHASES[k].name}) ran last.` : "The solver is idle.";
 }
 
 // ---------------------------------------------------------------------------
@@ -1033,7 +1080,7 @@ function buildPresets() {
   $("presets").innerHTML = PRESETS.map((p, i) => `
     <label class="preset"><input type="radio" name="preset" value="${i}" ${i === st.preset ? "checked" : ""}>
       <b>${p.name}</b> · ${fmt(p.spacing * 1e3, 1)} mm bird, ${p.cells} skin cells
-      <small>wall check at V<sub>C</sub> only: peak ${sign(p.peak)} %, plateau ${sign(p.plateau)} % · solver about ${p.run}</small></label>`).join("");
+      <small>wall check at V<sub>C</sub> only: peak ${sign(p.peak)} %, plateau ${sign(p.plateau)} % · solver about ${eng.gpu ? p.gpuRun : p.run}</small></label>`).join("");
   for (const el of document.querySelectorAll("#presets input")) {
     el.onchange = () => { st.preset = +el.value; preview(); };
   }
@@ -1064,6 +1111,13 @@ $("speedNumber").onchange = (e) => {
 $("speed").oninput = (e) => { st.speed = +e.target.value; showSpeed(); };
 // Update the idle preview on release, so a drag does not repeat solver setup.
 $("speed").onchange = () => { if (st.phase === "idle") preview(); };
+function showSkin() {
+  const t = st.tSkin * 1e3;
+  $("skinOut").textContent = `${fmt(t, 1)} mm = ${fmt(t / 25.4, 3)} in`;
+}
+$("skin").value = T_SKIN * 1e3;
+$("skin").oninput = (e) => { st.tSkin = e.target.value / 1e3; showSkin(); };
+$("skin").onchange = () => { if (st.phase === "idle") preview(); };
 $("fire").onclick = fire;
 $("stop").onclick = stopRun;
 document.addEventListener("keydown", (e) => {
@@ -1167,6 +1221,7 @@ loadCode().catch(() => {
   $("codeState").textContent = "The source code could not load. The solver can still run. Reload the page to try again.";
 });
 showSpeed();
+showSkin();
 showMute();
 buildPresets();
 resize();

@@ -9,10 +9,11 @@ import { loadEngine, hugoniot, stagnation, V_C, BIRD_MASS } from "../web/engine.
 const eng = await loadEngine();
 const ke0 = 0.5 * BIRD_MASS * V_C * V_C;
 
-test("gen/ and web/strike.wasm are built from the current sim/strike.goose", () => {
+test("gen/ and the wasm files are built from the current sim/", () => {
   // build.sh writes the sums when it generates the C and builds the wasm
   const sums = readFileSync(new URL("../gen/sha256sums", import.meta.url), "utf8").trim().split("\n");
-  assert.deepEqual(sums.map((l) => l.split(/\s+/)[1]), ["sim/strike.goose", "gen/strike.c", "gen/strike.h", "web/strike.wasm"]);
+  assert.deepEqual(sums.map((l) => l.split(/\s+/)[1]), ["sim/strike.goose", "gen/strike.c", "gen/strike.h", "web/strike.wasm",
+    "sim/gpu.goose", "sim/gpu.c", "gen/gpu.c", "gen/gpu.h", "web/strike-gpu.wasm"]);
   for (const l of sums) {
     const [sum, path] = l.split(/\s+/);
     assert.equal(createHash("sha256").update(readFileSync(new URL(`../${path}`, import.meta.url))).digest("hex"), sum, `${path}: run ./build.sh`);
