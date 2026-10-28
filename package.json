@@ -4,5 +4,8 @@
   "license": "MIT",
   "scripts": {
     "test": "node --test"
+  },
+  "devDependencies": {
+    "webgpu": "0.6.2"
   }
 }
