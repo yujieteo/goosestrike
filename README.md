@@ -187,6 +187,7 @@ The 9 mm mesh is the fast default on the CPU. The trade: its peak pressure is 43
 - "Export GIF" saves the last run as an animated GIF, 480 px wide: about ten frames a second of the approach, then one frame each 25 µs of simulated time.
   Each frame has a caption with the time and the colour bar. The encoder is `web/gif.mjs` (median cut palette, LZW), with no dependency.
 - The colour maps are continuous ramps, interpolated in OKLab: plastic strain on a square-root scale from the bare metal (0 %) to 18 %, so that the first yield shows, and bird pressure on a log scale from 0.1 MPa to 400 MPa.
+- Each shell element has a thin outline, and the panel edges, the free flanges and the lines where a stringer or a frame meets the skin have a heavier outline. Thus the shape of the panel shows over the strain colours.
 - The look (fonts, palette, interaction rules) is that of [teoyujie.org](https://teoyujie.org): the page links the site's shared stylesheet `/shared/kowalski.css`. `web/style.css` has only the rules of this tool.
 
 ## Goose on WebAssembly
@@ -232,6 +233,7 @@ The GPU solver is a port of the CPU solver, with these differences:
 | Eroded shells (all, and skin) | 2 elements | 0 |
 | Steps to 3 ms | 1 % | 0 |
 
+The test also compares what the page draws: the plastic strain of each element within 0.01, and the node positions within 1 mm.
 The test also runs the rigid wall on the GPU: the impulse is m v within 2 %, and the energy balance closes within 1 %.
 
 The GPU and the CPU agree less well on the plateau of the rigid wall check. The centre sensor force changes by about 20 % from step to step, so small differences change its mean.
