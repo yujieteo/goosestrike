@@ -75,6 +75,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .wide { display: block; width: 100%; min-height: var(--tap); margin-top: 8px; }
 
 .controls p.hint { margin: 4px 0 0; }
+.stage + .hint { margin: 16px 0 0; }
 .field { display: block; margin-top: 1.25rem; font-weight: 500; }
 .field output { float: right; font: 500 13px var(--mono); }
 .field input { width: 100%; min-height: var(--tap); margin: 0; accent-color: var(--ink); }
