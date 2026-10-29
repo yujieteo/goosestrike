@@ -163,8 +163,9 @@ void gw_map(int32_t buf) {
 
 int32_t gw_mapped(int32_t buf) { return map_state[buf]; }
 
-void gw_read(int32_t buf, int64_t offset, gw_floats out) {
-    wgpuBufferReadMappedRange(bufs[buf], (size_t)offset, out.data, (size_t)out.len * sizeof(float));
+/* 1, or 0 if the read failed (an offset that is not a multiple of 8) */
+int32_t gw_read(int32_t buf, int64_t offset, gw_floats out) {
+    return wgpuBufferReadMappedRange(bufs[buf], (size_t)offset, out.data, (size_t)out.len * sizeof(float)) == WGPUStatus_Success;
 }
 
 void gw_unmap(int32_t buf) {
