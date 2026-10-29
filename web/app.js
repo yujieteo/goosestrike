@@ -25,7 +25,7 @@ try {
   eng = cpu ? null : await loadGpuEngine().catch((error) => { console.warn("WebGPU solver:", error); return null; });
   eng ??= await loadEngine();
 } catch (error) {
-  $("fire").textContent = "GOOSE UNAVAILABLE";
+  $("fire").textContent = "Goose unavailable";
   $("banner").setAttribute("role", "alert");
   $("banner").textContent = "The solver could not load. Reload the page to try again.";
   throw error;
@@ -577,7 +577,7 @@ function chart(cv, series, opt) {
   const css = getComputedStyle(document.body);
   const ink = css.getPropertyValue("--ink"), muted = css.getPropertyValue("--muted"), line = css.getPropertyValue("--line");
   c.scale(dpr, dpr);
-  const w = r.width, h = r.height, L = 46, R = 8, T = 8, B = 30;
+  const w = r.width, h = r.height, L = 46, R = 16, T = 8, B = 30;
   const fy = opt.log ? (y) => Math.log10(Math.max(y, opt.ymin)) : (y) => y;
   const y0 = fy(opt.ymin), y1 = fy(opt.ymax);
   const X = (x) => L + (w - L - R) * (x - opt.xmin) / (opt.xmax - opt.xmin);
@@ -646,7 +646,7 @@ function setBusy(b) {
   $("wilbeck").disabled = b;
   $("stop").disabled = !b;
   $("gif").disabled = b || !st.gif;
-  $("fire").textContent = b ? "GOOSE IN FLIGHT" : "FIRE THE GOOSE";
+  $("fire").textContent = b ? "Goose in flight" : "Fire the goose";
   const runName = st.mode === 1 ? "Wall check" : "Panel run";
   $("runStatus").textContent = b
     ? `${runName} active. Press Escape or Stop and reset to stop.`
@@ -676,7 +676,7 @@ function stopRun() {
   preview();
   setBusy(false);
   $("runStatus").textContent = "Run stopped. Goose reset.";
-  $("banner").textContent = "Run stopped. Goose reset. Select a speed or resolution, then press FIRE.";
+  $("banner").textContent = "Run stopped. Goose reset. Select a speed or resolution, then press Fire the goose.";
 }
 
 // Runs the solver one phase at a time for BUDGET_MS. A frame can end in the
@@ -748,7 +748,7 @@ function telemetry() {
     const cell = tele.children[2 * i + 1];
     if (cell.textContent !== v) cell.textContent = v;
   });
-  $("honkBar").style.width = `${Math.min(100, eng.contactForce() / 3e5 * 100)}%`;
+  $("honkBar").style.transform = `scaleX(${Math.min(1, eng.contactForce() / 3e5)})`;
 
   const parts = [
     ["bird kinetic", eng.birdKE(), "#3f6f86"],
@@ -766,10 +766,10 @@ function verdict() {
   const v = $("verdict"), pr = PRESETS[st.preset];
   const skin = eng.failedSkin(), stiff = eng.failed() - skin;
   const breached = skin > 0;
-  v.className = "verdict " + (breached ? "breached" : "held");
+  v.className = "frame panel verdict " + (breached ? "breached" : "held");
   v.hidden = false;
   v.innerHTML = `
-    <div class="stamp">${breached ? "SKIN BREACHED" : "SKIN HELD"}</div>
+    <p class="stamp">${breached ? "Skin breached" : "Skin held"}</p>
     <h2>${breached ? "The goose tore the skin." : "The skin held. The goose did not."}</h2>
     <p>This run: ${pr.name} at ${fmt(st.speed, 2)} m/s (${fmt(st.speed / KT, 1)} kt), ${fmt(pr.spacing * 1e3, 1)} mm bird lattice, ${fmt(st.tSkin * 1e3, 1)} mm skin, on the ${eng.gpu ? "GPU" : "CPU"}.</p>
     <p>Eroded shell elements: ${fmt(skin, 0)} in the 2024-T3 skin, ${fmt(stiff, 0)} in the 7075-T6 stringers and frames.
@@ -827,7 +827,7 @@ function drawWallChart() {
   });
   const pm = w.platN ? w.plat / w.platN : 0;
   $("wilbeckOut").textContent =
-    `v = ${fmt(st.speed, 2)} m/s, bird lattice ${fmt(PRESETS[st.preset].spacing * 1e3, 1)} mm, ${eng.np()} particles, sensor r = ${fmt(eng.sensorR() * 1e3, 2)} mm\n` +
+    `v = ${fmt(st.speed, 2)} m/s, bird lattice ${fmt(PRESETS[st.preset].spacing * 1e3, 1)} mm, ${fmt(eng.np(), 0)} particles, sensor r = ${fmt(eng.sensorR() * 1e3, 2)} mm\n` +
     `Hugoniot  P_H = ${fmt(w.ph / 1e6, 1)} MPa (U_s = ${fmt(w.us, 0)} m/s)   peak    ${fmt(w.peak / 1e6, 1)} MPa   error ${sign((w.peak - w.ph) / w.ph * 100)} %\n` +
     `Stagnation P_s = ${fmt(w.ps / 1e6, 2)} MPa                plateau ${fmt(pm / 1e6, 2)} MPa   error ${w.platN ? sign((pm - w.ps) / w.ps * 100) : "—"} %\n` +
     `impulse / (m v) = ${fmt(eng.impulse() / (BIRD_MASS * st.speed), 4)}   (plateau: mean over 0.25 to 0.75 of L/v = ${fmt(w.tl * 1e6, 0)} µs)`;
@@ -1027,7 +1027,7 @@ async function loadCode() {
   $("code").innerHTML = lines.map((_, i) => html(i)).join("");
   code.step = { first: r0, lines: $("step").children };
   code.lines = $("code").children;
-  $("phases").innerHTML = PHASES.map((ph, k) => `<li><button data-k="${k}"><span>${k}</span> ${ph.name}</button></li>`).join("");
+  $("phases").innerHTML = PHASES.map((ph, k) => `<li><button class="button" data-k="${k}"><span>${k}</span> ${ph.name}</button></li>`).join("");
   code.chips = [...$("phases").querySelectorAll("button")];
   for (const b of code.chips) b.onclick = () => scrollCode(+b.dataset.k);
 }
@@ -1052,7 +1052,7 @@ function codeView(now) {
     : running && eng.gpu ? "On the GPU, the kernels of web/strike.wgsl do all five phases of each step. No line is lit." : "The solver is idle.";
   if ($("codeState").textContent !== state) $("codeState").textContent = state;
   if (k === code.shown) return;
-  code.chips.forEach((b, i) => b.classList.toggle("on", i === k));
+  code.chips.forEach((b, i) => { b.dataset.active = String(i === k); });
   for (const l of $("code").querySelectorAll(".on")) l.classList.remove("on");
   for (const l of $("step").querySelectorAll(".on")) l.classList.remove("on");
   if (k >= 0) {
@@ -1101,7 +1101,7 @@ function preview() {
   st.phase = "idle";
   $("runStatus").textContent = "";
   $("verdict").hidden = true;
-  $("banner").textContent = "Goose loaded. Goose is unaware. Press FIRE.";
+  $("banner").textContent = "Goose loaded. Goose is unaware. Press Fire the goose.";
 }
 
 $("speed").value = V_C;
@@ -1137,25 +1137,27 @@ document.addEventListener("keydown", (e) => {
 });
 $("wilbeck").onclick = wallCheck;
 $("gif").onclick = exportGif;
+// aria-pressed for assistive technology, data-active for the selected look of .button
+function setPressed(b, on) { b.setAttribute("aria-pressed", String(on)); b.dataset.active = String(on); }
 $("mute").onclick = () => {
   st.muted = !st.muted;
   try { localStorage.setItem("goosestrike-muted", st.muted ? "1" : "0"); } catch { /* no storage */ }
   showMute();
 };
 function showMute() {
-  $("mute").setAttribute("aria-pressed", String(st.muted));
+  setPressed($("mute"), st.muted);
   $("mute").textContent = st.muted ? "🔇 Honks off" : "🔊 Honks on";
 }
 $("btnCostume").onclick = () => {
   st.costume = !st.costume;
-  $("btnCostume").setAttribute("aria-pressed", String(st.costume));
+  setPressed($("btnCostume"), st.costume);
   legend();
 };
-$("btnPov").onclick = () => { drag = null; st.pov = !st.pov; $("btnPov").setAttribute("aria-pressed", String(st.pov)); showZoom(); };
+$("btnPov").onclick = () => { drag = null; st.pov = !st.pov; setPressed($("btnPov"), st.pov); showZoom(); };
 function resetCamera() {
   drag = null;
   st.yaw = 1.0; st.pitch = 0.25; st.dist = 1.3; st.pov = false;
-  $("btnPov").setAttribute("aria-pressed", "false");
+  setPressed($("btnPov"), false);
   showZoom();
 }
 $("btnReset").onclick = resetCamera;

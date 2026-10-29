@@ -15,7 +15,7 @@ python3 -m http.server -d web 8000
 # then open http://localhost:8000/
 ```
 
-A local server has no `/shared/kowalski.css`, so the page shows without the fonts and colours of the site.
+A local server has no `/shared/kowalski.css`, so the page shows without the fonts, colours, button look and focus ring of the site. The buttons show as plain browser buttons.
 The repository has the built `web/strike.wasm` and `web/strike-gpu.wasm`, so the page needs no build step.
 The page uses the GPU solver if the browser has WebGPU and the GPU solver starts, else the CPU solver. Add `?solver=cpu` to the URL to use the CPU solver.
 This is not a certification analysis. The page and this README say where the model is coarse.
