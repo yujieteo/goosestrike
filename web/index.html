@@ -10,103 +10,117 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="wrap">
-  <span class="kind">Experiment · Ballistic Waterfowl Laboratory</span>
+<header class="wrap intro">
   <h1>Goose strike</h1>
-  <p class="lede">One 4&nbsp;lb goose. One fuselage panel. 14&nbsp;CFR&nbsp;25.571(e)(1). Explicit dynamics in
-    <a href="https://github.com/aardappel/goose">Goose</a>, compiled to WebAssembly, with a solver on the GPU (WebGPU) if your browser has WebGPU.</p>
+  <p>Ballistic Waterfowl Laboratory</p>
 </header>
 
 <main class="wrap">
-  <section class="stage">
-    <canvas id="view" tabindex="0" aria-label="3D view of the goose and the panel" aria-describedby="cameraHint"></canvas>
-    <div id="bubble" class="bubble" hidden>HONK!</div>
-    <div id="banner" class="banner"></div>
-    <div class="legend" id="legend"></div>
-    <div class="viewbar">
-      <p id="cameraHint" class="camera-hint">Drag the view or use arrow keys to rotate. Use + and - keys to zoom. Press Home to reset the camera. Passenger POV fixes the camera.</p>
-      <button id="btnCostume" class="button" aria-pressed="true" data-active="true">Goose costume</button>
-      <button id="btnPov" class="button" aria-pressed="false">Passenger POV</button>
-      <button id="btnReset" class="button">Reset camera</button>
-      <button id="btnZoomIn" class="button" aria-label="Zoom in">Zoom +</button>
-      <button id="btnZoomOut" class="button" aria-label="Zoom out">Zoom −</button>
+  <p>One 4&nbsp;lb goose. One fuselage panel. 14&nbsp;CFR&nbsp;25.571(e)(1). Explicit dynamics in
+    <a href="https://github.com/aardappel/goose">Goose</a>, compiled to WebAssembly, with a solver on the GPU (WebGPU) if your browser has WebGPU.</p>
+
+  <figure>
+    <div class="frame stage">
+      <canvas id="view" tabindex="0" aria-label="3D view of the goose and the panel" aria-describedby="cameraHint"></canvas>
+      <div id="bubble" class="bubble" hidden>HONK!</div>
+      <div id="banner" class="banner"></div>
+      <div class="legend" id="legend"></div>
+      <div class="viewbar">
+        <button id="btnCostume" class="button" aria-pressed="true" data-active="true">Goose costume</button>
+        <button id="btnPov" class="button" aria-pressed="false">Passenger POV</button>
+        <button id="btnReset" class="button">Reset camera</button>
+        <button id="btnZoomIn" class="button" aria-label="Zoom in">Zoom +</button>
+        <button id="btnZoomOut" class="button" aria-label="Zoom out">Zoom −</button>
+      </div>
     </div>
+    <figcaption id="cameraHint">Drag the view or use arrow keys to rotate. Use + and - keys to zoom. Press Home to reset the camera. Passenger POV fixes the camera.</figcaption>
+  </figure>
+
+  <figure>
+    <section class="frame panel controls" aria-label="Controls">
+      <div class="cannon">
+        <button id="fire" class="button fire" disabled>Loading goose…</button>
+        <button id="mute" class="button" aria-pressed="false">🔊 Honks on</button>
+      </div>
+      <button id="stop" class="button wide" aria-keyshortcuts="Escape" disabled>Stop and reset (Esc)</button>
+      <p class="hint" id="runStatus" role="status" aria-atomic="true"></p>
+      <button id="gif" class="button wide" disabled>Export GIF</button>
+
+      <label class="field">Goose speed <output id="speedOut"></output>
+        <input id="speed" type="range" min="50" max="250" step="0.01">
+      </label>
+      <label class="speed-entry">Set speed (m/s)
+        <input id="speedNumber" type="number" inputmode="decimal" required aria-describedby="speedEntryStatus">
+      </label>
+      <p class="hint" id="speedEntryStatus" role="status"></p>
+      <p class="hint" id="specCheck"></p>
+
+      <label class="field">Skin thickness <output id="skinOut"></output>
+        <input id="skin" type="range" min="0.8" max="3.2" step="0.1" aria-describedby="skinHint">
+      </label>
+      <p class="hint" id="skinHint">The default is 1.6 mm. The stringers and frames do not change.</p>
+
+      <fieldset class="presets">
+        <legend>Goose resolution</legend>
+        <div id="presets"></div>
+      </fieldset>
+    </section>
+    <figcaption>The cannon, the goose and the panel.</figcaption>
+  </figure>
+
+  <section class="frame panel verdict" id="verdict" hidden></section>
+
+  <section>
+    <h2 id="telemetry"><a class="anchor" href="#telemetry" aria-label="Link to Telemetry">#</a>Telemetry</h2>
+    <figure>
+      <div class="frame panel">
+        <dl id="tele"></dl>
+        <div class="honk">
+          <span>Honk-o-meter (contact force)</span>
+          <div class="meter"><div id="honkBar"></div></div>
+        </div>
+        <div class="energy">
+          <span id="energyTitle">Goose energy</span>
+          <div class="ebar" id="ebar"></div>
+          <ul class="ekey" id="ekey"></ul>
+        </div>
+        <canvas id="forceChart" class="chart" aria-label="Contact force against time"></canvas>
+      </div>
+      <figcaption>The state of the run, and the contact force against time.</figcaption>
+    </figure>
   </section>
 
-
-  <section class="controls">
-    <div class="cannon">
-      <button id="fire" class="button fire" disabled>LOADING GOOSE…</button>
-      <button id="mute" class="button" aria-pressed="false">🔊 Honks on</button>
-    </div>
-    <button id="stop" class="button wide" aria-keyshortcuts="Escape" disabled>Stop and reset (Esc)</button>
-    <p class="hint" id="runStatus" role="status" aria-atomic="true"></p>
-    <button id="gif" class="button wide" disabled>Export GIF</button>
-
-    <label class="field">Goose speed <output id="speedOut"></output>
-      <input id="speed" type="range" min="50" max="250" step="0.01">
-    </label>
-    <label class="speed-entry">Set speed (m/s)
-      <input id="speedNumber" type="number" inputmode="decimal" required aria-describedby="speedEntryStatus">
-    </label>
-    <p class="hint" id="speedEntryStatus" role="status"></p>
-    <p class="hint" id="specCheck"></p>
-
-    <label class="field">Skin thickness <output id="skinOut"></output>
-      <input id="skin" type="range" min="0.8" max="3.2" step="0.1" aria-describedby="skinHint">
-    </label>
-    <p class="hint" id="skinHint">The default is 1.6 mm. The stringers and frames do not change.</p>
-
-    <fieldset class="presets">
-      <legend>Goose resolution</legend>
-      <div id="presets"></div>
-    </fieldset>
-  </section>
-
-  <section class="telemetry">
-    <h2>Telemetry</h2>
-    <dl id="tele"></dl>
-    <div class="honk">
-      <span>Honk-o-meter (contact force)</span>
-      <div class="meter"><div id="honkBar"></div></div>
-    </div>
-    <div class="energy">
-      <span id="energyTitle">Goose energy</span>
-      <div class="ebar" id="ebar"></div>
-      <ul class="ekey" id="ekey"></ul>
-    </div>
-    <canvas id="forceChart" class="chart" aria-label="Contact force against time"></canvas>
-  </section>
-
-  <section class="code">
-    <h2>The Goose code that runs</h2>
-    <p class="hint">On the CPU, the page runs each time step of <code>sim/strike.goose</code> in five phases, one call to
+  <section>
+    <h2 id="source"><a class="anchor" href="#source" aria-label="Link to The Goose code that runs">#</a>The Goose code that runs</h2>
+    <p>On the CPU, the page runs each time step of <code>sim/strike.goose</code> in five phases, one call to
       <code>step_phase</code> each. The lit lines are the phase that ran last, as the solver reports it.
       The source scrolls to the phase that runs, at most once a second.
       On the GPU, this Goose code makes the set-up. Then the WGSL kernels of <code>web/strike.wgsl</code> do the five phases of each step.
-      Automatic scroll pauses while a source pane or phase button has focus. <span id="codeState" role="status"></span></p>
+      Automatic scroll pauses while a source pane or phase button has focus.</p>
+    <p class="hint" id="codeState" role="status"></p>
     <ol class="phases" id="phases"></ol>
-    <div class="panes">
-      <pre id="step" class="source short" tabindex="0" role="region" aria-label="run_phase in sim/strike.goose"></pre>
-      <pre id="code" class="source" tabindex="0" role="region" aria-label="Source of sim/strike.goose"></pre>
-    </div>
+    <pre id="step" class="source short" tabindex="0" role="region" aria-label="run_phase in sim/strike.goose"></pre>
+    <pre id="code" class="source" tabindex="0" role="region" aria-label="Source of sim/strike.goose"></pre>
   </section>
 
-  <section class="verdict" id="verdict" hidden></section>
-
-  <section class="wilbeck">
-    <h2>Control experiment: goose vs. infinitely rigid wall</h2>
+  <section>
+    <h2 id="wall-check"><a class="anchor" href="#wall-check" aria-label="Link to the control experiment">#</a>Control experiment: goose vs. infinitely rigid wall</h2>
     <p>Fire the goose at a rigid wall, and compare the pressure at the impact centre
       with Wilbeck's two hydrodynamic pressures: the Hugoniot shock pressure
       P<sub>H</sub> = ρ<sub>0</sub>U<sub>s</sub>v at first contact, and the
       stagnation pressure P<sub>s</sub> = ½ρ<sub>0</sub>v² in steady flow.</p>
-    <button id="wilbeck" class="button" disabled>Run the wall check</button>
-    <p id="wilbeckOut" class="mono"></p>
-    <canvas id="wallChart" class="chart tall" aria-label="Centre pressure against time"></canvas>
+    <figure>
+      <div class="frame panel">
+        <button id="wilbeck" class="button" disabled>Run the wall check</button>
+        <p id="wilbeckOut" class="mono"></p>
+        <canvas id="wallChart" class="chart tall" aria-label="Centre pressure against time"></canvas>
+      </div>
+      <figcaption>Centre pressure against time, with P<sub>H</sub> and P<sub>s</sub>.</figcaption>
+    </figure>
   </section>
 
-  <section class="receipts">
-    <h2>Receipts</h2>
+  <section>
+    <h2 id="receipts"><a class="anchor" href="#receipts" aria-label="Link to Receipts">#</a>Receipts</h2>
     <details open>
       <summary>The rule</summary>
       <blockquote>“(e) Damage-tolerance (discrete source) evaluation. The airplane must be capable of

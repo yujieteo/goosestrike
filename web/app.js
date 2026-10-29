@@ -25,7 +25,7 @@ try {
   eng = cpu ? null : await loadGpuEngine().catch((error) => { console.warn("WebGPU solver:", error); return null; });
   eng ??= await loadEngine();
 } catch (error) {
-  $("fire").textContent = "GOOSE UNAVAILABLE";
+  $("fire").textContent = "Goose unavailable";
   $("banner").setAttribute("role", "alert");
   $("banner").textContent = "The solver could not load. Reload the page to try again.";
   throw error;
@@ -577,7 +577,7 @@ function chart(cv, series, opt) {
   const css = getComputedStyle(document.body);
   const ink = css.getPropertyValue("--ink"), muted = css.getPropertyValue("--muted"), line = css.getPropertyValue("--line");
   c.scale(dpr, dpr);
-  const w = r.width, h = r.height, L = 46, R = 8, T = 8, B = 30;
+  const w = r.width, h = r.height, L = 46, R = 16, T = 8, B = 30;
   const fy = opt.log ? (y) => Math.log10(Math.max(y, opt.ymin)) : (y) => y;
   const y0 = fy(opt.ymin), y1 = fy(opt.ymax);
   const X = (x) => L + (w - L - R) * (x - opt.xmin) / (opt.xmax - opt.xmin);
@@ -646,7 +646,7 @@ function setBusy(b) {
   $("wilbeck").disabled = b;
   $("stop").disabled = !b;
   $("gif").disabled = b || !st.gif;
-  $("fire").textContent = b ? "GOOSE IN FLIGHT" : "FIRE THE GOOSE";
+  $("fire").textContent = b ? "Goose in flight" : "Fire the goose";
   const runName = st.mode === 1 ? "Wall check" : "Panel run";
   $("runStatus").textContent = b
     ? `${runName} active. Press Escape or Stop and reset to stop.`
@@ -676,7 +676,7 @@ function stopRun() {
   preview();
   setBusy(false);
   $("runStatus").textContent = "Run stopped. Goose reset.";
-  $("banner").textContent = "Run stopped. Goose reset. Select a speed or resolution, then press FIRE.";
+  $("banner").textContent = "Run stopped. Goose reset. Select a speed or resolution, then press Fire the goose.";
 }
 
 // Runs the solver one phase at a time for BUDGET_MS. A frame can end in the
@@ -766,10 +766,10 @@ function verdict() {
   const v = $("verdict"), pr = PRESETS[st.preset];
   const skin = eng.failedSkin(), stiff = eng.failed() - skin;
   const breached = skin > 0;
-  v.className = "verdict " + (breached ? "breached" : "held");
+  v.className = "frame panel verdict " + (breached ? "breached" : "held");
   v.hidden = false;
   v.innerHTML = `
-    <div class="stamp">${breached ? "SKIN BREACHED" : "SKIN HELD"}</div>
+    <p class="stamp">${breached ? "Skin breached" : "Skin held"}</p>
     <h2>${breached ? "The goose tore the skin." : "The skin held. The goose did not."}</h2>
     <p>This run: ${pr.name} at ${fmt(st.speed, 2)} m/s (${fmt(st.speed / KT, 1)} kt), ${fmt(pr.spacing * 1e3, 1)} mm bird lattice, ${fmt(st.tSkin * 1e3, 1)} mm skin, on the ${eng.gpu ? "GPU" : "CPU"}.</p>
     <p>Eroded shell elements: ${fmt(skin, 0)} in the 2024-T3 skin, ${fmt(stiff, 0)} in the 7075-T6 stringers and frames.
@@ -1101,7 +1101,7 @@ function preview() {
   st.phase = "idle";
   $("runStatus").textContent = "";
   $("verdict").hidden = true;
-  $("banner").textContent = "Goose loaded. Goose is unaware. Press FIRE.";
+  $("banner").textContent = "Goose loaded. Goose is unaware. Press Fire the goose.";
 }
 
 $("speed").value = V_C;
