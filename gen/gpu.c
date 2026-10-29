@@ -4729,7 +4729,7 @@ int32_t gw_bind(int32_t, sl_i32);
 void gw_copy(int32_t, int64_t, int32_t, int64_t, int64_t);
 void gw_map(int32_t);
 int32_t gw_mapped(int32_t);
-void gw_read(int32_t, int64_t, sl_f32);
+int32_t gw_read(int32_t, int64_t, sl_f32);
 void gw_unmap(int32_t);
 double floor(double);
 
@@ -6684,14 +6684,10 @@ static int32_t gpu_run_g(int32_t steps_g, double t_end_g) {
 static int32_t gpu_poll_g(int64_t gs_sp) {
     sl_f32 t12;
     sl_f32 t13;
-    sl_f32 t21;
-    sl_f32 t22;
-    sl_f32 t29;
-    sl_f32 t30;
-    sl_f32 t51;
-    sl_f32 t52;
-    sl_f32 t59;
-    sl_f32 t60;
+    sl_f32 t23;
+    sl_f32 t24;
+    sl_f32 t33;
+    sl_f32 t34;
     if ((uint8_t)((int64_t)((int64_t)(GS_GL->pending_g)) == (int64_t)(0))) {
         int32_t t0;
         t0 = 0;
@@ -6718,71 +6714,75 @@ static int32_t gpu_poll_g(int64_t gs_sp) {
     int64_t t11 = 24;
     t12.data = t8 + t10; t12.len = t11 - t10;
     t13 = t12;
-    gw_read(t6, t7, t13);
-    int32_t t14 = rb_g;
-    int64_t t15 = 96;
-    float *t16 = GS_GL->ghist_g.e;
-    int64_t t17 = 65536;
-    int64_t t18 = gs_mul_i64((int64_t)(4), a_g, gs_file0, 316);
-    int64_t t20 = GS_GL->oldest_g;
-    int64_t t19 = gs_mul_i64((int64_t)(4), gs_add_i64((int64_t)(a_g), GS_GL->read_count_g.e[t20], gs_file0, 316), gs_file0, 316);
-    if (t18 < 0 || t19 < t18 || t19 > t17) gs_abort(GS_E_SLICE, gs_file0, 316);
-    t21.data = t16 + t18; t21.len = t19 - t18;
-    t22 = t21;
-    gw_read(t14, t15, t22);
-    int32_t t23 = rb_g;
-    int64_t t24 = 8288;
-    float *t25 = GS_GL->up_g.e;
-    int64_t t26 = 480000;
-    int64_t t27 = 0;
-    int64_t t28 = gs_mul_i64((int64_t)(4), GS_GL->np_g, gs_file0, 318);
-    if (t27 < 0 || t28 < t27 || t28 > t26) gs_abort(GS_E_SLICE, gs_file0, 318);
-    t29.data = t25 + t27; t29.len = t28 - t27;
-    t30 = t29;
-    gw_read(t23, t24, t30);
+    int32_t t14 = gw_read(t6, t7, t13);
+    int32_t t15 = t14;
+    int32_t t16 = rb_g;
+    int64_t t17 = 96;
+    float *t18 = GS_GL->ghist_g.e;
+    int64_t t19 = 65536;
+    int64_t t20 = gs_mul_i64((int64_t)(4), a_g, gs_file0, 317);
+    int64_t t22 = GS_GL->oldest_g;
+    int64_t t21 = gs_mul_i64((int64_t)(4), gs_add_i64((int64_t)(a_g), GS_GL->read_count_g.e[t22], gs_file0, 317), gs_file0, 317);
+    if (t20 < 0 || t21 < t20 || t21 > t19) gs_abort(GS_E_SLICE, gs_file0, 317);
+    t23.data = t18 + t20; t23.len = t21 - t20;
+    t24 = t23;
+    int32_t t25 = gw_read(t16, t17, t24);
+    int32_t t26 = (int32_t)((int32_t)(t15) & (int32_t)(t25));
+    int32_t t27 = rb_g;
+    int64_t t28 = 8288;
+    float *t29 = GS_GL->up_g.e;
+    int64_t t30 = 480000;
     int64_t t31 = 0;
-    int64_t t32 = GS_GL->np_g;
-    for (int64_t i_g = t31; i_g < t32; i_g++) {
-        int64_t t35 = 0;
-        int64_t t36 = 3;
-        for (int64_t k_g = t35; k_g < t36; k_g++) {
-            int64_t t39 = gs_add_i64((int64_t)(gs_mul_i64((int64_t)(3), i_g, gs_file0, 320)), k_g, gs_file0, 320);
-            float *t40 = &(GS_GL->r_part_g.e[GS_IDX((int64_t)(t39), 180000, gs_file0, 320)]);
-            int64_t t41 = gs_add_i64((int64_t)(gs_mul_i64((int64_t)(4), i_g, gs_file0, 320)), k_g, gs_file0, 320);
-            (*t40) = GS_GL->up_g.e[GS_IDX((int64_t)(t41), 480000, gs_file0, 320)];
-        }
-        int64_t t42 = i_g;
-        float *t43 = &(GS_GL->r_pp_g.e[GS_IDX((int64_t)(t42), 60000, gs_file0, 321)]);
-        int64_t t44 = gs_add_i64((int64_t)(gs_mul_i64((int64_t)(4), i_g, gs_file0, 321)), 3, gs_file0, 321);
-        (*t43) = GS_GL->up_g.e[t44];
+    int64_t t32 = gs_add_i64((int64_t)(gs_add_i64((int64_t)(gs_mul_i64((int64_t)(4), GS_GL->np_g, gs_file0, 127)), gs_mul_i64((int64_t)(3), GS_GL->nn_g, gs_file0, 127), gs_file0, 127)), GS_GL->ne_g, gs_file0, 127);
+    if (t31 < 0 || t32 < t31 || t32 > t30) gs_abort(GS_E_SLICE, gs_file0, 318);
+    t33.data = t29 + t31; t33.len = t32 - t31;
+    t34 = t33;
+    int32_t t35 = gw_read(t27, t28, t34);
+    int32_t ok_g = (int32_t)((int32_t)(t26) & (int32_t)(t35));
+    int32_t t36 = rb_g;
+    gw_unmap(t36);
+    GS_GL->oldest_g = (int64_t)((uint64_t)((int64_t)((int64_t)(gs_add_i64((int64_t)(GS_GL->oldest_g), 1, gs_file0, 320)))) % (uint64_t)((int64_t)(2)));
+    GS_GL->pending_g = gs_sub_i64(GS_GL->pending_g, 1, gs_file0, 321);
+    if ((uint8_t)((int32_t)((int32_t)(ok_g)) == (int32_t)(0))) {
+        int32_t t37;
+        t37 = -1;
+        return t37;
     }
-    int32_t t45 = rb_g;
-    int64_t t46 = gs_add_i64((int64_t)(8288), gs_mul_i64((int64_t)(16), GS_GL->np_g, gs_file0, 323), gs_file0, 323);
-    float *t47 = GS_GL->r_node_g.e;
-    int64_t t48 = 72000;
-    int64_t t49 = 0;
-    int64_t t50 = gs_mul_i64((int64_t)(3), GS_GL->nn_g, gs_file0, 323);
-    if (t49 < 0 || t50 < t49 || t50 > t48) gs_abort(GS_E_SLICE, gs_file0, 323);
-    t51.data = t47 + t49; t51.len = t50 - t49;
-    t52 = t51;
-    gw_read(t45, t46, t52);
-    int32_t t53 = rb_g;
-    int64_t t54 = gs_add_i64((int64_t)(gs_add_i64((int64_t)(8288), gs_mul_i64((int64_t)(16), GS_GL->np_g, gs_file0, 324), gs_file0, 324)), gs_mul_i64((int64_t)(12), GS_GL->nn_g, gs_file0, 324), gs_file0, 324);
-    float *t55 = GS_GL->r_eep_g.e;
-    int64_t t56 = 24000;
-    int64_t t57 = 0;
-    int64_t t58 = GS_GL->ne_g;
-    if (t57 < 0 || t58 < t57 || t58 > t56) gs_abort(GS_E_SLICE, gs_file0, 324);
-    t59.data = t55 + t57; t59.len = t58 - t57;
-    t60 = t59;
-    gw_read(t53, t54, t60);
-    int32_t t61 = rb_g;
-    gw_unmap(t61);
-    GS_GL->oldest_g = (int64_t)((uint64_t)((int64_t)((int64_t)(gs_add_i64((int64_t)(GS_GL->oldest_g), 1, gs_file0, 326)))) % (uint64_t)((int64_t)(2)));
-    GS_GL->pending_g = gs_sub_i64(GS_GL->pending_g, 1, gs_file0, 327);
+    int64_t t38 = 0;
+    int64_t t39 = GS_GL->np_g;
+    for (int64_t i_g = t38; i_g < t39; i_g++) {
+        int64_t t42 = 0;
+        int64_t t43 = 3;
+        for (int64_t k_g = t42; k_g < t43; k_g++) {
+            int64_t t46 = gs_add_i64((int64_t)(gs_mul_i64((int64_t)(3), i_g, gs_file0, 324)), k_g, gs_file0, 324);
+            float *t47 = &(GS_GL->r_part_g.e[GS_IDX((int64_t)(t46), 180000, gs_file0, 324)]);
+            int64_t t48 = gs_add_i64((int64_t)(gs_mul_i64((int64_t)(4), i_g, gs_file0, 324)), k_g, gs_file0, 324);
+            (*t47) = GS_GL->up_g.e[GS_IDX((int64_t)(t48), 480000, gs_file0, 324)];
+        }
+        int64_t t49 = i_g;
+        float *t50 = &(GS_GL->r_pp_g.e[GS_IDX((int64_t)(t49), 60000, gs_file0, 325)]);
+        int64_t t51 = gs_add_i64((int64_t)(gs_mul_i64((int64_t)(4), i_g, gs_file0, 325)), 3, gs_file0, 325);
+        (*t50) = GS_GL->up_g.e[t51];
+    }
+    int64_t t52 = 0;
+    int64_t t53 = gs_mul_i64((int64_t)(3), GS_GL->nn_g, gs_file0, 327);
+    for (int64_t i_g_2 = t52; i_g_2 < t53; i_g_2++) {
+        int64_t t56 = i_g_2;
+        float *t57 = &(GS_GL->r_node_g.e[GS_IDX((int64_t)(t56), 72000, gs_file0, 327)]);
+        int64_t t58 = gs_add_i64((int64_t)(gs_mul_i64((int64_t)(4), GS_GL->np_g, gs_file0, 327)), i_g_2, gs_file0, 327);
+        (*t57) = GS_GL->up_g.e[GS_IDX((int64_t)(t58), 480000, gs_file0, 327)];
+    }
+    int64_t t59 = 0;
+    int64_t t60 = GS_GL->ne_g;
+    for (int64_t e_g = t59; e_g < t60; e_g++) {
+        int64_t t63 = e_g;
+        float *t64 = &(GS_GL->r_eep_g.e[GS_IDX((int64_t)(t63), 24000, gs_file0, 328)]);
+        int64_t t65 = gs_add_i64((int64_t)(gs_add_i64((int64_t)(gs_mul_i64((int64_t)(4), GS_GL->np_g, gs_file0, 328)), gs_mul_i64((int64_t)(3), GS_GL->nn_g, gs_file0, 328), gs_file0, 328)), e_g, gs_file0, 328);
+        (*t64) = GS_GL->up_g.e[GS_IDX((int64_t)(t65), 480000, gs_file0, 328)];
+    }
     GS_GL->sim_time_g = GS_GL->gs_g.e[0];
     GS_GL->dt_g = GS_GL->gs_g.e[1];
-    GS_GL->nsteps_g = (int64_t)GS_F2I(GS_GL->gs_g.e[4], 1, (-9223372036854775807LL - 1), 9223372036854775807LL, "i64", gs_file0, 330);
+    GS_GL->nsteps_g = (int64_t)GS_F2I(GS_GL->gs_g.e[4], 1, (-9223372036854775807LL - 1), 9223372036854775807LL, "i64", gs_file0, 331);
     GS_GL->t_contact_g = GS_GL->gs_g.e[5];
     GS_GL->contact_fz_g = GS_GL->gs_g.e[6];
     GS_GL->center_fz_g = GS_GL->gs_g.e[7];
@@ -6790,27 +6790,27 @@ static int32_t gpu_poll_g(int64_t gs_sp) {
     GS_GL->panel_work_g = GS_GL->gs_g.e[9];
     GS_GL->hg_work_g = GS_GL->gs_g.e[10];
     GS_GL->bird_work_g = GS_GL->gs_g.e[11];
-    GS_GL->n_failed_g = (int64_t)GS_F2I(GS_GL->gs_g.e[12], 1, (-9223372036854775807LL - 1), 9223372036854775807LL, "i64", gs_file0, 338);
-    GS_GL->n_failed_skin_g = (int64_t)GS_F2I(GS_GL->gs_g.e[13], 1, (-9223372036854775807LL - 1), 9223372036854775807LL, "i64", gs_file0, 339);
+    GS_GL->n_failed_g = (int64_t)GS_F2I(GS_GL->gs_g.e[12], 1, (-9223372036854775807LL - 1), 9223372036854775807LL, "i64", gs_file0, 339);
+    GS_GL->n_failed_skin_g = (int64_t)GS_F2I(GS_GL->gs_g.e[13], 1, (-9223372036854775807LL - 1), 9223372036854775807LL, "i64", gs_file0, 340);
     GS_GL->max_ep_g = GS_GL->gs_g.e[14];
     GS_GL->max_defl_g = GS_GL->gs_g.e[15];
-    int32_t t62;
-    t62 = 1;
-    return t62;
+    int32_t t66;
+    t66 = 1;
+    return t66;
     GS_UNREACHABLE(gs_file0, 309);
-    int32_t t63 = {0};
-    return t63;
+    int32_t t67 = {0};
+    return t67;
 }
 
 static int32_t gpu_running_g(void) {
     int32_t t0;
-    t0 = (int32_t)GS_F2I(GS_GL->gs_g.e[17], 1, (-2147483647 - 1), 2147483647, "i32", gs_file0, 346);
+    t0 = (int32_t)GS_F2I(GS_GL->gs_g.e[17], 1, (-2147483647 - 1), 2147483647, "i32", gs_file0, 347);
     return t0;
 }
 
 static int32_t gpu_pending_g(void) {
     int32_t t0;
-    t0 = (int32_t)GS_RANGE((int64_t)(GS_GL->pending_g), (-2147483647 - 1), 2147483647, "i32", gs_file0, 348);
+    t0 = (int32_t)GS_RANGE((int64_t)(GS_GL->pending_g), (-2147483647 - 1), 2147483647, "i32", gs_file0, 349);
     return t0;
 }
 
@@ -6835,7 +6835,7 @@ static int32_t gpu_hist_cap_g(void) {
 static sl_u8 gpu_buf_hist_g(int64_t gs_sp) {
     sl_u8 t0;
     sl_u8 t4;
-    if (!gs_is_le()) gs_abort(GS_E_ENDIAN, gs_file0, 353);
+    if (!gs_is_le()) gs_abort(GS_E_ENDIAN, gs_file0, 354);
     int64_t t1 = 65536;
     const uint8_t *t2 = (const uint8_t *)(GS_GL->ghist_g.e);
     int64_t t3 = (t1) * 4;

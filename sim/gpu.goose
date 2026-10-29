@@ -27,7 +27,7 @@ extern fn gw_copy(src: i32, src_off: i64, dst: i32, dst_off: i64, size: i64);
 extern fn gw_submit();
 extern fn gw_map(buf: i32);
 extern fn gw_mapped(buf: i32) -> i32;
-extern fn gw_read(buf: i32, offset: i64, out: f32[:]);
+extern fn gw_read(buf: i32, offset: i64, out: f32[:]) -> i32;
 extern fn gw_unmap(buf: i32);
 
 // ---- buffers: binding n of web/strike.wgsl is buffer n ----
@@ -305,26 +305,27 @@ export fn gpu_run(steps: i32, t_end: f64) -> i32 {
 
 // 1 when the copy of the oldest gpu_run that is not read back is mapped:
 // then this puts it in the globals of strike.goose and the history. 0 while
-// the GPU works or when no run is pending, -1 if the map failed.
+// the GPU works or when no run is pending, -1 if the map or a read failed.
 export fn gpu_poll() -> i32 {
     if pending == 0 { return 0; }
     let rb = gbuf[B_READ + oldest];
     let state = gw_mapped(rb);
     if state != 1 { return state; }
     let a = read_first[oldest];
-    gw_read(rb, 0, gs[0..NS]);
-    gw_read(rb, 4 * NS, ghist[4 * a..4 * (a + read_count[oldest])]);
-    let o = 4 * NS + 16 * RUN_MAX;
-    gw_read(rb, o, up[0..4 * np]);
+    // A read starts at a multiple of 8 bytes, or it fails (WebGPU
+    // getMappedRange). So what the page draws comes in one read.
+    let ok = gw_read(rb, 0, gs[0..NS]) & gw_read(rb, 4 * NS, ghist[4 * a..4 * (a + read_count[oldest])])
+        & gw_read(rb, 4 * NS + 16 * RUN_MAX, up[0..rbuf_floats()]);
+    gw_unmap(rb);
+    oldest = (oldest + 1) % 2;
+    pending -= 1;
+    if ok == 0 { return -1; }
     for i in 0..np {
         for k in 0..3 { r_part[3 * i + k] = up[4 * i + k]; }
         r_pp[i] = up[4 * i + 3];
     }
-    gw_read(rb, o + 16 * np, r_node[0..3 * nn]);
-    gw_read(rb, o + 16 * np + 12 * nn, r_eep[0..ne]);
-    gw_unmap(rb);
-    oldest = (oldest + 1) % 2;
-    pending -= 1;
+    for i in 0..3 * nn { r_node[i] = up[4 * np + i]; }
+    for e in 0..ne { r_eep[e] = up[4 * np + 3 * nn + e]; }
     sim_time = gs[0];
     dt = gs[1];
     nsteps = gs[4] as i64;

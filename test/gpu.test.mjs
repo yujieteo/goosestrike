@@ -65,6 +65,15 @@ test("the GPU solver matches the CPU solver on the panel", { skip }, async () =>
   assert.ok(rel(gpu.panelWork(), cpu.panelWork()) < 0.01, "panel work");
   assert.ok(Math.abs(gpu.failed() - cpu.failed()) <= 2, `eroded: GPU ${gpu.failed()}, CPU ${cpu.failed()}`);
   assert.ok(Math.abs(gpu.failedSkin() - cpu.failedSkin()) <= 2, "eroded skin");
+  // what the page draws: the strain of each element and the node positions
+  cpu.fillRender();
+  const gs = gpu.strain(), cs = cpu.strain(), gn = gpu.nodes(), cn = cpu.nodes();
+  let ds = 0, dx = 0;
+  for (let e = 0; e < cs.length; e++) if (gs[e] >= 0 && cs[e] >= 0) ds = Math.max(ds, Math.abs(gs[e] - cs[e]));
+  for (let i = 0; i < cn.length; i++) dx = Math.max(dx, Math.abs(gn[i] - cn[i]));
+  assert.ok(Math.max(...gs) > 0.5 * cpu.maxPlasticStrain(), "the GPU strain is drawn");
+  assert.ok(ds < 0.01, `element strain differs by ${ds}`);
+  assert.ok(dx < 1e-3, `node positions differ by ${dx * 1e3} mm`);
 });
 
 test("GPU rigid wall: the impulse is m v and the energy balance closes", { skip }, async () => {
