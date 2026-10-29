@@ -15,6 +15,7 @@ python3 -m http.server -d web 8000
 # then open http://localhost:8000/
 ```
 
+A local server has no `/shared/kowalski.css`, so the page shows without the fonts and colours of the site.
 The repository has the built `web/strike.wasm` and `web/strike-gpu.wasm`, so the page needs no build step.
 The page uses the GPU solver if the browser has WebGPU and the GPU solver starts, else the CPU solver. Add `?solver=cpu` to the URL to use the CPU solver.
 This is not a certification analysis. The page and this README say where the model is coarse.
@@ -186,7 +187,7 @@ The 9 mm mesh is the fast default on the CPU. The trade: its peak pressure is 43
 - "Export GIF" saves the last run as an animated GIF, 480 px wide: about ten frames a second of the approach, then one frame each 25 µs of simulated time.
   Each frame has a caption with the time and the colour bar. The encoder is `web/gif.mjs` (median cut palette, LZW), with no dependency.
 - The colour maps are continuous ramps, interpolated in OKLab: plastic strain on a square-root scale from the bare metal (0 %) to 18 %, so that the first yield shows, and bird pressure on a log scale from 0.1 MPa to 400 MPa.
-- The look (fonts, palette) is that of [teoyujie.org](https://teoyujie.org). The fonts are in `web/fonts/`: Source Serif 4 and DM Sans, with their OFL licences.
+- The look (fonts, palette, interaction rules) is that of [teoyujie.org](https://teoyujie.org): the page links the site's shared stylesheet `/shared/kowalski.css`. `web/style.css` has only the rules of this tool.
 
 ## Goose on WebAssembly
 
@@ -308,4 +309,3 @@ CI runs the same tests on each push. CI installs lavapipe, a Vulkan driver that 
 MIT (see `LICENSE`), for the code of this repository.
 Goose is Apache-2.0. This repository does not include Goose source, but the generated `gen/strike.c` and `web/strike.wasm` contain the Goose runtime that the compiler puts in its output. Thus `web/GOOSE-LICENSE.txt` has the Goose licence.
 `web/strike-gpu.mjs` and `web/strike-gpu.wasm` contain code of Emscripten's emdawnwebgpu port. `web/WEBGPU-LICENSE.txt` has its BSD licences.
-The fonts in `web/fonts/` are under the SIL Open Font License (the `-OFL.txt` files).
