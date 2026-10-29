@@ -1,34 +1,20 @@
-/* The look of teoyujie.org: its fonts, its warm palette and its calm grid. */
-@font-face { font-family: "Source Serif 4"; src: url(fonts/source-serif-4.woff2) format("woff2"); font-weight: 400; font-display: swap; }
-@font-face { font-family: "DM Sans"; src: url(fonts/dm-sans.woff2) format("woff2"); font-weight: 100 1000; font-display: swap; }
+/* The rules of this tool only. The tokens, the fonts and the interaction rules are in /shared/kowalski.css. */
 :root {
-  --bg: #f4f1ea;
-  --ink: #1c1b18;
-  --muted: #5c5950;
-  --line: #d8d2c4;
-  --accent: #c4613f;
   --good: #4f7a4a;
   --bad: #a8432a;
-  --stage: #e9e3d6;
-  --serif: "Source Serif 4", Georgia, serif;
-  --sans: "DM Sans", system-ui, sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --stage: var(--hover);
 }
 
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); }
-a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
-a:hover { color: var(--accent); }
 a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 code { font: 0.92em var(--mono); }
 .wrap { max-width: 88rem; margin: 0 auto; padding-left: clamp(1rem, 4vw, 3rem); padding-right: clamp(1rem, 4vw, 3rem); }
 
 header.wrap { padding-top: clamp(1.5rem, 4vw, 3rem); padding-bottom: 1.5rem; }
 .kind { font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
-h1, h2 { font-family: var(--serif); font-weight: 400; }
-h1 { font-size: clamp(2.5rem, 6vw, 4.25rem); line-height: 1.06; letter-spacing: -0.015em; margin: 0.5rem 0 0; }
+h1, h2 { font-weight: 500; letter-spacing: -0.02em; }
+h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.1; margin: 0.5rem 0 0; }
 .lede { font-size: 1.2rem; color: var(--muted); margin: 1rem 0 0; max-width: 46rem; text-wrap: pretty; }
-h2 { font-size: 1.6rem; line-height: 1.2; margin: 0 0 0.5rem; }
+h2 { font-size: 1.25rem; line-height: 1.2; margin: 0 0 0.5rem; }
 
 main {
   display: grid;
@@ -59,42 +45,38 @@ main > section { border-top: 1px solid var(--ink); padding-top: 1.25rem; }
 
 .bubble {
   position: absolute; left: 50%; top: 22%; transform: translate(-50%, 0) rotate(-6deg);
-  background: #fffdf8; color: var(--ink); font: 400 44px/1 var(--serif); padding: 10px 22px;
+  background: var(--bg); color: var(--ink); font: 600 44px/1 var(--sans); padding: 10px 22px;
   border: 3px solid var(--ink); border-radius: 26px; pointer-events: none;
-  animation: pop 0.9s ease-out forwards;
+  /* app.js hides the bubble after 900 ms: in for 200 ms, out for 200 ms */
+  animation: bubble-in 200ms var(--ease-out), fade-out 200ms var(--ease-out) 700ms forwards;
 }
-@keyframes pop {
-  0% { transform: translate(-50%, 0) scale(0.2) rotate(-6deg); opacity: 0; }
-  20% { transform: translate(-50%, 0) scale(1.15) rotate(-6deg); opacity: 1; }
-  80% { opacity: 1; }
-  100% { transform: translate(-50%, -30px) scale(1) rotate(-3deg); opacity: 0; }
-}
+@keyframes bubble-in { from { transform: translate(-50%, 0) scale(0.9) rotate(-6deg); opacity: 0; } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { to { opacity: 0; } }
 
 button {
   font: inherit; font-size: 0.9rem; color: var(--ink); background: transparent; border: 1px solid var(--ink);
-  border-radius: 999px; padding: 6px 14px; cursor: pointer; transition: border-color 160ms ease, color 160ms ease;
+  border-radius: 999px; padding: 6px 14px; cursor: pointer;
 }
-button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
-button[aria-pressed="true"]:hover:not(:disabled) { color: var(--bg); background: var(--accent); }
-.viewbar button { background: #f4f1eae6; min-height: 44px; }
+/* rows of buttons that wrap: a visible 44 px, so that the tap areas do not overlap */
+.viewbar button, .phases button { min-height: var(--tap); }
+.viewbar button { background: color-mix(in srgb, var(--bg) 90%, transparent); }
 .viewbar button[aria-pressed="true"] { background: var(--ink); }
 
 .cannon { display: flex; gap: 8px; align-items: stretch; }
 .fire {
   flex: 1; font-weight: 600; font-size: 1.05rem; letter-spacing: 0.06em; padding: 14px;
-  color: #fff; background: var(--accent); border-color: var(--accent);
+  color: var(--bg); background: var(--ink); border-color: var(--ink);
 }
-.fire:hover:not(:disabled) { color: #fff; background: #a94f31; border-color: #a94f31; }
-.fire:active:not(:disabled) { transform: translateY(1px); }
 .small { font-size: 0.8rem; }
 .wide { display: block; width: 100%; margin-top: 8px; }
-#stop { min-height: 44px; }
+#stop { min-height: var(--tap); }
 
 .field { display: block; margin-top: 1.25rem; font-weight: 500; }
 .field output { float: right; font: 500 13px var(--mono); }
-.field input { width: 100%; margin-top: 6px; accent-color: var(--accent); }
+.field input { width: 100%; min-height: var(--tap); margin: 0; accent-color: var(--ink); }
 .speed-entry { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.85rem; }
 .speed-entry input { width: 7rem; min-height: 44px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink); font: inherit; }
 .speed-entry input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -106,8 +88,7 @@ button[aria-pressed="true"]:hover:not(:disabled) { color: var(--bg); background:
 .presets { margin: 1rem 0 0; border: 0; border-top: 1px solid var(--line); padding: 0.75rem 0 0; }
 .presets legend { font-weight: 500; padding: 0; float: left; width: 100%; margin-bottom: 4px; }
 .preset { display: block; padding: 6px 4px; border-radius: 4px; cursor: pointer; clear: left; }
-.preset:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
-.preset input { accent-color: var(--accent); }
+.preset input { accent-color: var(--ink); }
 .preset b { font-weight: 500; }
 .preset small { display: block; margin-left: 22px; color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
 
@@ -131,17 +112,17 @@ dl#tele dd { margin: 0; text-align: right; font: 500 12.5px var(--mono); }
 .phases { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0.75rem 0; padding: 0; }
 .phases button { display: flex; align-items: baseline; gap: 6px; border-color: var(--line); font-size: 0.85rem; }
 .phases button span { font: 500 11px var(--mono); color: var(--muted); }
-.phases button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.phases button.on { border-color: var(--ink); background: var(--select); }
 .source {
-  height: 22rem; overflow: auto; margin: 0; padding: 8px 0; background: #fbf9f4; border: 1px solid var(--line); border-radius: 4px;
+  height: 22rem; overflow: auto; margin: 0; padding: 8px 0; background: var(--chip); border: 1px solid var(--line); border-radius: 4px;
   font: 12px/1.5 var(--mono); counter-reset: none; tab-size: 4;
 }
 .panes { display: grid; gap: 0.75rem; }
 .source.short { height: auto; }
 .source:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.source .ln { display: block; padding: 0 12px 0 0; border-left: 3px solid transparent; transition: background 120ms ease; }
-.source .ln::before { content: attr(data-n); display: inline-block; width: 3.5em; padding-right: 1em; text-align: right; color: #a7a194; user-select: none; }
-.source .ln.on { background: color-mix(in srgb, var(--accent) 16%, transparent); border-left-color: var(--accent); }
+.source .ln { display: block; padding: 0 12px 0 0; border-left: 3px solid transparent; }
+.source .ln::before { content: attr(data-n); display: inline-block; width: 3.5em; padding-right: 1em; text-align: right; color: var(--underline-hover); user-select: none; }
+.source .ln.on { background: var(--select); border-left-color: var(--ink); }
 .source b { font-weight: 600; }
 .source i { font-style: normal; color: var(--muted); }
 
@@ -155,9 +136,9 @@ dl#tele dd { margin: 0; text-align: right; font: 500 12.5px var(--mono); }
 .verdict.breached .stamp { color: var(--bad); }
 .verdict.held .stamp { color: var(--good); }
 
-blockquote { margin: 8px 0; padding: 4px 14px; border-left: 2px solid var(--accent); color: var(--muted); font-family: var(--serif); font-size: 1.05rem; }
+blockquote { margin: 8px 0; padding: 4px 14px; border-left: 2px solid var(--line); color: var(--muted); }
 details { margin-bottom: 8px; }
-summary { cursor: pointer; font-weight: 500; }
+summary { cursor: pointer; font-weight: 500; padding: 10px 0; }
 .disclaimer { font-size: 0.85rem; color: var(--muted); }
 
 @media (max-width: 900px) {
@@ -165,7 +146,10 @@ summary { cursor: pointer; font-weight: 500; }
   .stage, .controls, .telemetry, .code, .verdict, .wilbeck, .receipts { grid-column: 1; grid-row: auto; }
   .stage, #view { min-height: 360px; }
 }
+@media (hover: hover) and (pointer: fine) {
+  button:hover:not(:disabled), .preset:hover { background: var(--hover); }
+  button[aria-pressed="true"]:hover:not(:disabled), .fire:hover:not(:disabled) { background: var(--muted); border-color: var(--muted); }
+}
 @media (prefers-reduced-motion: reduce) {
-  button, .source .ln { transition: none; }
-  .bubble { animation: none; }
+  .bubble { animation-name: fade-in, fade-out; }
 }

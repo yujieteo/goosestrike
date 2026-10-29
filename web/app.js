@@ -614,7 +614,7 @@ function ticks(max, n) {
 function drawForceChart() {
   const xs = st.hist.map((h) => h.t * 1e6), ys = st.hist.map((h) => h.f / 1e3);
   const ymax = Math.max(50, ...ys) * 1.1;
-  chart($("forceChart"), [{ xs, ys, color: "#c4613f" }], {
+  chart($("forceChart"), [{ xs, ys }], {
     xmin: 0, xmax: T_END * 1e6, ymin: 0, ymax, xticks: ticks(T_END * 1e6, 6), yticks: ticks(ymax, 4),
     xlabel: "time (µs)", ylabel: "contact force (kN)",
   });
