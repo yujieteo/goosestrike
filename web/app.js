@@ -58,6 +58,7 @@ const st = {
   ke0: 1,
   peakF: 0,
   elems: null, skinNe: 0,
+  edges: null,            // per element: a bit per side that is a feature line (featureEdges)
   nodes: null, parts: null, press: null, strain: null,
   init: null,             // particle positions at set-up
   skin: null,             // costume colour per particle
@@ -190,6 +191,20 @@ function skinElements(cells) {
   return cells * gs;
 }
 
+// The sides that are not between exactly two elements: the panel edges, the
+// free flanges, and the lines where a stringer or a frame meets the skin.
+// Bit k: the side from corner k to corner k + 1.
+function featureEdges(el) {
+  const ne = el.length / 4, count = new Map(), key = (a, b) => a < b ? a * 1e6 + b : b * 1e6 + a;
+  for (let i = 0; i < 4 * ne; i++) {
+    const k = key(el[i], el[i - i % 4 + (i + 1) % 4]);
+    count.set(k, (count.get(k) || 0) + 1);
+  }
+  const edges = new Uint8Array(ne);
+  for (let i = 0; i < 4 * ne; i++) if (count.get(key(el[i], el[i - i % 4 + (i + 1) % 4])) !== 2) edges[i >> 2] |= 1 << i % 4;
+  return edges;
+}
+
 function setupRun(mode) {
   const pr = PRESETS[st.preset];
   eng.setSkin(st.tSkin);
@@ -199,6 +214,7 @@ function setupRun(mode) {
   legend();
   readState();
   st.elems = eng.elements();
+  st.edges = featureEdges(st.elems);
   st.skinNe = mode === 0 ? skinElements(pr.cells) : 0;
   st.init = st.parts.slice();
   st.ke0 = eng.birdKE();
@@ -328,6 +344,7 @@ const MAPS = {
   primer: ramp(["#9da27f", ...HOT]),                       // inside, stringers and frames
   pressure: ramp(["#243552", "#3f6f86", "#94b49c", "#e8c766", "#c4613f"]),
 };
+const GRID = "rgba(43, 41, 37, 0.35)";                     // GOOSE.ink, for the element sides
 const SHADES = 64;
 const mapCache = new Map();
 
@@ -416,6 +433,24 @@ function drawShell(e) {
   ctx.lineTo(sNodes[3 * d], sNodes[3 * d + 1]);
   ctx.closePath();
   ctx.fill();
+  ctx.stroke();
+  // the outlines, so that the shape shows over all the strain colours: a
+  // thin grid of the element sides and a heavier line on the feature lines
+  ctx.strokeStyle = GRID;
+  ctx.lineWidth = 0.5 * DPR;
+  ctx.stroke();
+  const f = st.edges[e];
+  if (!f) return;
+  const q = [a, b, c, d];
+  ctx.strokeStyle = GOOSE.ink;
+  ctx.lineWidth = 1.2 * DPR;
+  ctx.beginPath();
+  for (let k = 0; k < 4; k++) {
+    if (!(f >> k & 1)) continue;
+    const i = q[k], j = q[(k + 1) % 4];
+    ctx.moveTo(sNodes[3 * i], sNodes[3 * i + 1]);
+    ctx.lineTo(sNodes[3 * j], sNodes[3 * j + 1]);
+  }
   ctx.stroke();
 }
 
