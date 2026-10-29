@@ -60,6 +60,7 @@ main > section { border-top: 1px solid var(--ink); padding-top: 1.25rem; }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 /* rows of buttons that wrap: a visible 44 px, so that the tap areas do not overlap */
 .viewbar button, .phases button { min-height: var(--tap); }
+.viewbar button { background: color-mix(in srgb, var(--bg) 90%, transparent); }
 
 .cannon { display: flex; gap: 8px; align-items: stretch; }
 .fire {
