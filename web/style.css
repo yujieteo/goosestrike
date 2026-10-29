@@ -5,15 +5,17 @@
   --stage: var(--hover);
 }
 
-a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* .button has the focus ring of /shared/kowalski.css */
+a:focus-visible, #snap:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 code { font: 0.92em var(--mono); }
 .wrap { max-width: 88rem; margin: 0 auto; padding-left: clamp(1rem, 4vw, 3rem); padding-right: clamp(1rem, 4vw, 3rem); }
 
 header.wrap { padding-top: clamp(1.5rem, 4vw, 3rem); padding-bottom: 1.5rem; }
 .kind { font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
-h1, h2 { font-weight: 500; letter-spacing: -0.02em; }
+h1, h2 { font-weight: 500; letter-spacing: -0.02em; text-wrap: balance; }
 h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.1; margin: 0.5rem 0 0; }
-.lede { font-size: 1.2rem; color: var(--muted); margin: 1rem 0 0; max-width: 46rem; text-wrap: pretty; }
+.lede { font-size: 1.2rem; color: var(--muted); margin: 1rem 0 0; max-width: 65ch; text-wrap: pretty; }
+.code > p, .wilbeck > p, .receipts p, blockquote { max-width: 65ch; }
 h2 { font-size: 1.25rem; line-height: 1.2; margin: 0 0 0.5rem; }
 
 main {
@@ -54,23 +56,16 @@ main > section { border-top: 1px solid var(--ink); padding-top: 1.25rem; }
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes fade-out { to { opacity: 0; } }
 
-button {
-  font: inherit; font-size: 0.9rem; color: var(--ink); background: transparent; border: 1px solid var(--ink);
-  border-radius: 999px; padding: 6px 14px; cursor: pointer;
-}
+/* The look of .button (and of .button[data-active="true"]) is in /shared/kowalski.css. */
 button:disabled { opacity: 0.45; cursor: not-allowed; }
-button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 /* rows of buttons that wrap: a visible 44 px, so that the tap areas do not overlap */
 .viewbar button, .phases button { min-height: var(--tap); }
-.viewbar button { background: color-mix(in srgb, var(--bg) 90%, transparent); }
-.viewbar button[aria-pressed="true"] { background: var(--ink); }
 
 .cannon { display: flex; gap: 8px; align-items: stretch; }
 .fire {
   flex: 1; font-weight: 600; font-size: 1.05rem; letter-spacing: 0.06em; padding: 14px;
   color: var(--bg); background: var(--ink); border-color: var(--ink);
 }
-.small { font-size: 0.8rem; }
 .wide { display: block; width: 100%; margin-top: 8px; }
 #stop { min-height: var(--tap); }
 
@@ -78,12 +73,14 @@ button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 .field output { float: right; font: 500 13px var(--mono); }
 .field input { width: 100%; min-height: var(--tap); margin: 0; accent-color: var(--ink); }
 .speed-entry { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.85rem; }
-.speed-entry input { width: 7rem; min-height: 44px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink); font: inherit; }
+/* 16 px: iOS zooms the page into an input with smaller text */
+.speed-entry input { width: 7rem; min-height: 44px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; font-variant-numeric: tabular-nums; }
 .speed-entry input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .hint { margin: 4px 0 0; font-size: 0.85rem; color: var(--muted); }
 .hint.ok { color: var(--good); }
 .hint.off { color: var(--bad); }
-#snap { font: inherit; color: inherit; border: 0; border-radius: 0; padding: 0; text-decoration: underline; text-underline-offset: 0.2em; }
+/* #snap is a button in a sentence, so it looks like a link of /shared/kowalski.css */
+#snap { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline 0.08em var(--underline); text-underline-position: from-font; }
 
 .presets { margin: 1rem 0 0; border: 0; border-top: 1px solid var(--line); padding: 0.75rem 0 0; }
 .presets legend { font-weight: 500; padding: 0; float: left; width: 100%; margin-bottom: 4px; }
@@ -98,7 +95,7 @@ dl#tele dd { margin: 0; text-align: right; font: 500 12.5px var(--mono); }
 
 .honk, .energy { margin-top: 1rem; font-size: 0.85rem; color: var(--muted); }
 .meter { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; margin-top: 4px; }
-#honkBar { height: 100%; width: 0; background: linear-gradient(90deg, #e2b54f, #c4613f, #6e2a22); transition: width 80ms linear; }
+#honkBar { height: 100%; transform: scaleX(0); transform-origin: left; background: linear-gradient(90deg, #e2b54f, #c4613f, #6e2a22); transition: transform 80ms linear; }
 .ebar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--line); margin-top: 4px; }
 .ebar div { height: 100%; }
 .ekey { list-style: none; margin: 6px 0 0; padding: 0; font: 12px var(--mono); color: var(--ink); }
@@ -110,9 +107,8 @@ dl#tele dd { margin: 0; text-align: right; font: 500 12.5px var(--mono); }
 .mono { font: 13px var(--mono); white-space: pre-wrap; }
 
 .phases { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0.75rem 0; padding: 0; }
-.phases button { display: flex; align-items: baseline; gap: 6px; border-color: var(--line); font-size: 0.85rem; }
+.phases button { display: flex; align-items: baseline; gap: 6px; }
 .phases button span { font: 500 11px var(--mono); color: var(--muted); }
-.phases button.on { border-color: var(--ink); background: var(--select); }
 .source {
   height: 22rem; overflow: auto; margin: 0; padding: 8px 0; background: var(--chip); border: 1px solid var(--line); border-radius: 4px;
   font: 12px/1.5 var(--mono); counter-reset: none; tab-size: 4;
@@ -147,8 +143,9 @@ summary { cursor: pointer; font-weight: 500; padding: 10px 0; }
   .stage, #view { min-height: 360px; }
 }
 @media (hover: hover) and (pointer: fine) {
-  button:hover:not(:disabled), .preset:hover { background: var(--hover); }
-  button[aria-pressed="true"]:hover:not(:disabled), .fire:hover:not(:disabled) { background: var(--muted); border-color: var(--muted); }
+  .preset:hover { background: var(--hover); }
+  #snap:hover { text-decoration-color: var(--underline-hover); }
+  .fire:hover:not(:disabled) { background: var(--muted); border-color: var(--muted); }
 }
 @media (prefers-reduced-motion: reduce) {
   .bubble { animation-name: fade-in, fade-out; }

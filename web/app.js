@@ -748,7 +748,7 @@ function telemetry() {
     const cell = tele.children[2 * i + 1];
     if (cell.textContent !== v) cell.textContent = v;
   });
-  $("honkBar").style.width = `${Math.min(100, eng.contactForce() / 3e5 * 100)}%`;
+  $("honkBar").style.transform = `scaleX(${Math.min(1, eng.contactForce() / 3e5)})`;
 
   const parts = [
     ["bird kinetic", eng.birdKE(), "#3f6f86"],
@@ -827,7 +827,7 @@ function drawWallChart() {
   });
   const pm = w.platN ? w.plat / w.platN : 0;
   $("wilbeckOut").textContent =
-    `v = ${fmt(st.speed, 2)} m/s, bird lattice ${fmt(PRESETS[st.preset].spacing * 1e3, 1)} mm, ${eng.np()} particles, sensor r = ${fmt(eng.sensorR() * 1e3, 2)} mm\n` +
+    `v = ${fmt(st.speed, 2)} m/s, bird lattice ${fmt(PRESETS[st.preset].spacing * 1e3, 1)} mm, ${fmt(eng.np(), 0)} particles, sensor r = ${fmt(eng.sensorR() * 1e3, 2)} mm\n` +
     `Hugoniot  P_H = ${fmt(w.ph / 1e6, 1)} MPa (U_s = ${fmt(w.us, 0)} m/s)   peak    ${fmt(w.peak / 1e6, 1)} MPa   error ${sign((w.peak - w.ph) / w.ph * 100)} %\n` +
     `Stagnation P_s = ${fmt(w.ps / 1e6, 2)} MPa                plateau ${fmt(pm / 1e6, 2)} MPa   error ${w.platN ? sign((pm - w.ps) / w.ps * 100) : "—"} %\n` +
     `impulse / (m v) = ${fmt(eng.impulse() / (BIRD_MASS * st.speed), 4)}   (plateau: mean over 0.25 to 0.75 of L/v = ${fmt(w.tl * 1e6, 0)} µs)`;
@@ -1027,7 +1027,7 @@ async function loadCode() {
   $("code").innerHTML = lines.map((_, i) => html(i)).join("");
   code.step = { first: r0, lines: $("step").children };
   code.lines = $("code").children;
-  $("phases").innerHTML = PHASES.map((ph, k) => `<li><button data-k="${k}"><span>${k}</span> ${ph.name}</button></li>`).join("");
+  $("phases").innerHTML = PHASES.map((ph, k) => `<li><button class="button" data-k="${k}"><span>${k}</span> ${ph.name}</button></li>`).join("");
   code.chips = [...$("phases").querySelectorAll("button")];
   for (const b of code.chips) b.onclick = () => scrollCode(+b.dataset.k);
 }
@@ -1052,7 +1052,7 @@ function codeView(now) {
     : running && eng.gpu ? "On the GPU, the kernels of web/strike.wgsl do all five phases of each step. No line is lit." : "The solver is idle.";
   if ($("codeState").textContent !== state) $("codeState").textContent = state;
   if (k === code.shown) return;
-  code.chips.forEach((b, i) => b.classList.toggle("on", i === k));
+  code.chips.forEach((b, i) => { b.dataset.active = String(i === k); });
   for (const l of $("code").querySelectorAll(".on")) l.classList.remove("on");
   for (const l of $("step").querySelectorAll(".on")) l.classList.remove("on");
   if (k >= 0) {
@@ -1137,25 +1137,27 @@ document.addEventListener("keydown", (e) => {
 });
 $("wilbeck").onclick = wallCheck;
 $("gif").onclick = exportGif;
+// aria-pressed for assistive technology, data-active for the selected look of .button
+function setPressed(b, on) { b.setAttribute("aria-pressed", String(on)); b.dataset.active = String(on); }
 $("mute").onclick = () => {
   st.muted = !st.muted;
   try { localStorage.setItem("goosestrike-muted", st.muted ? "1" : "0"); } catch { /* no storage */ }
   showMute();
 };
 function showMute() {
-  $("mute").setAttribute("aria-pressed", String(st.muted));
+  setPressed($("mute"), st.muted);
   $("mute").textContent = st.muted ? "🔇 Honks off" : "🔊 Honks on";
 }
 $("btnCostume").onclick = () => {
   st.costume = !st.costume;
-  $("btnCostume").setAttribute("aria-pressed", String(st.costume));
+  setPressed($("btnCostume"), st.costume);
   legend();
 };
-$("btnPov").onclick = () => { drag = null; st.pov = !st.pov; $("btnPov").setAttribute("aria-pressed", String(st.pov)); showZoom(); };
+$("btnPov").onclick = () => { drag = null; st.pov = !st.pov; setPressed($("btnPov"), st.pov); showZoom(); };
 function resetCamera() {
   drag = null;
   st.yaw = 1.0; st.pitch = 0.25; st.dist = 1.3; st.pov = false;
-  $("btnPov").setAttribute("aria-pressed", "false");
+  setPressed($("btnPov"), false);
   showZoom();
 }
 $("btnReset").onclick = resetCamera;
