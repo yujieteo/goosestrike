@@ -46,7 +46,7 @@
       <p class="hint" id="runStatus" role="status" aria-atomic="true"></p>
       <button id="gif" class="button wide" disabled>Export GIF</button>
 
-      <label class="field">Goose speed <output id="speedOut"></output>
+      <label class="field" for="speed">Goose speed <output id="speedOut"></output>
         <input id="speed" type="range" min="50" max="250" step="0.01">
       </label>
       <label class="speed-entry">Set speed (m/s)
@@ -55,7 +55,7 @@
       <p class="hint" id="speedEntryStatus" role="status"></p>
       <p class="hint" id="specCheck"></p>
 
-      <label class="field">Skin thickness <output id="skinOut"></output>
+      <label class="field" for="skin">Skin thickness <output id="skinOut"></output>
         <input id="skin" type="range" min="0.8" max="3.2" step="0.1" aria-describedby="skinHint">
       </label>
       <p class="hint" id="skinHint">The default is 1.6 mm. The stringers and frames do not change.</p>
