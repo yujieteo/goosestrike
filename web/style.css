@@ -9,7 +9,7 @@
 }
 
 /* .button has the focus ring of /shared/kowalski.css */
-a:focus-visible, #snap:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+a:focus-visible, .snap:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .wrap { max-width: var(--column); margin: 0 auto; padding-left: var(--gutter); padding-right: var(--gutter); }
 
 .intro { padding-top: 4rem; margin-bottom: 4rem; }
@@ -23,13 +23,14 @@ h2 { position: relative; font-size: 1rem; font-weight: 550; line-height: 1.5; ma
 .anchor:focus-visible { opacity: 1; }
 
 /* inline code and code blocks */
-code { font: 0.857em var(--mono); background: var(--chip); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 3.6px; }
+/* a percentage, so that inline code follows the size of its parent text */
+code { font: 85.7% var(--mono); background: var(--chip); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 3.6px; }
 
 /* the framed box of each interactive part, and its caption */
 figure { margin: 32px 0; }
 .frame { position: relative; background: #fff; border-radius: 12px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
 .panel { padding: 17px 23px; }
-figcaption { margin-top: 16px; font-size: 12px; line-height: 16px; color: var(--muted); text-align: center; text-wrap: balance; }
+figcaption { margin-top: 16px; font-size: 0.75rem; line-height: 16px; color: var(--muted); text-align: center; text-wrap: balance; }
 @media (max-width: 767px) {
   figure > .frame, .verdict { margin-left: calc(-1 * var(--gutter)); margin-right: calc(-1 * var(--gutter)); border-radius: 0; }
   .panel { padding: 17px var(--gutter); }
@@ -37,28 +38,30 @@ figcaption { margin-top: 16px; font-size: 12px; line-height: 16px; color: var(--
 }
 
 .stage { overflow: hidden; background: var(--stage); }
-#view { display: block; width: 100%; height: 440px; touch-action: pinch-zoom; cursor: grab; }
-#view:active { cursor: grabbing; }
-#view:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
-@media (max-width: 767px) { #view { height: 360px; } }
+.view { display: block; width: 100%; height: 440px; touch-action: pinch-zoom; cursor: grab; }
+.view:active { cursor: grabbing; }
+.view:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+@media (max-width: 767px) { .view { height: 360px; } }
 
 .viewbar { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
 .banner {
   position: absolute; left: 14px; top: 12px; right: 14px;
-  font: 500 13px var(--mono); color: var(--ink);
+  font: 500 0.8125rem var(--mono); color: var(--ink);
   pointer-events: none;
 }
-.legend { position: absolute; right: 14px; top: 52px; font-size: 12px; color: var(--ink); text-align: right; pointer-events: none; }
+.legend { position: absolute; right: 14px; top: 52px; font-size: 0.75rem; color: var(--ink); text-align: right; pointer-events: none; }
 .legend .ramp { width: 180px; height: 10px; border-radius: 5px; margin: 3px 0 1px auto; }
 .legend .ticks { display: flex; justify-content: space-between; width: 180px; margin: 0 0 8px auto; font-family: var(--mono); }
 
 .bubble {
   position: absolute; left: 50%; top: 22%; transform: translate(-50%, 0) rotate(-6deg);
-  background: var(--bg); color: var(--ink); font: 600 44px/1 var(--sans); padding: 10px 22px;
+  background: var(--bg); color: var(--ink); font: 600 2.75rem/1 var(--sans); padding: 10px 22px;
   border: 3px solid var(--ink); border-radius: 26px; pointer-events: none;
-  /* app.js hides the bubble after 900 ms: in for 200 ms, out for 200 ms */
-  animation: bubble-in 200ms var(--ease-out), fade-out 200ms var(--ease-out) 700ms forwards;
+  /* Feedback: the goose hit the panel. app.js holds the bubble for 700 ms, then adds .out and hides it 160 ms later.
+     In 200 ms (a toast), out 160 ms (an exit is about 20% faster). */
+  animation: bubble-in 200ms var(--ease-out);
 }
+.bubble.out { animation: fade-out 160ms var(--ease-out) forwards; }
 @keyframes bubble-in { from { transform: translate(-50%, 0) scale(0.9) rotate(-6deg); opacity: 0; } }
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes fade-out { to { opacity: 0; } }
@@ -75,51 +78,51 @@ figcaption { margin-top: 16px; font-size: 12px; line-height: 16px; color: var(--
 .controls p.hint { margin: 4px 0 0; }
 .stage + .hint { margin: 16px 0 0; }
 .field { display: block; margin-top: 1.25rem; font-weight: 500; }
-.field output { float: right; font: 500 13px var(--mono); }
+.field output { float: right; font: 500 0.8125rem var(--mono); }
 .field input { width: 100%; min-height: var(--tap); margin: 0; accent-color: var(--ink); }
 .speed-entry { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--small); }
-/* 16 px: iOS zooms the page into an input with smaller text */
-.speed-entry input { width: 7rem; min-height: 44px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; font-variant-numeric: tabular-nums; }
+/* 1rem (16 px): iOS zooms the page into an input with smaller text */
+.speed-entry input { width: 7rem; min-height: 44px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--ink); font: inherit; font-size: 1rem; font-variant-numeric: tabular-nums; }
 .speed-entry input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .hint { font-size: var(--small); color: var(--muted); }
 .hint.ok { color: var(--good); }
 .hint.off { color: var(--bad); }
-/* #snap is a button in a sentence, so it looks like a link of /shared/kowalski.css */
-#snap { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-decoration: underline 0.08em var(--underline); text-underline-position: from-font; }
-#snap:not(:disabled) { cursor: pointer; }
+/* .snap is a button in a sentence, so it looks like a link of /shared/kowalski.css */
+.snap { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-decoration: underline 0.08em var(--underline); text-underline-position: from-font; }
+.snap:not(:disabled) { cursor: pointer; }
 
 .presets { margin: 1rem 0 0; border: 0; padding: 0; }
 .presets legend { font-weight: 500; padding: 0; float: left; width: 100%; margin-bottom: 4px; }
 .preset { display: block; padding: 6px 4px; border-radius: var(--radius); cursor: pointer; clear: left; }
 .preset input { accent-color: var(--ink); }
 .preset b { font-weight: 500; }
-.preset small { display: block; margin-left: 22px; color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
+.preset small { display: block; margin-left: 22px; color: var(--muted); font-family: var(--mono); font-size: 0.71875rem; }
 
-dl#tele { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: var(--small); }
-dl#tele dt { color: var(--muted); }
-dl#tele dd { margin: 0; text-align: right; font: 500 12.5px var(--mono); }
+.tele { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: var(--small); }
+.tele dt { color: var(--muted); }
+.tele dd { margin: 0; text-align: right; font: 500 0.78125rem var(--mono); }
 
 .honk, .energy { margin-top: 1rem; font-size: var(--small); color: var(--muted); }
 .meter { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; margin-top: 4px; }
-#honkBar { height: 100%; transform: scaleX(0); transform-origin: left; background: linear-gradient(90deg, #e2b54f, #c4613f, #6e2a22); transition: transform 80ms linear; }
+.honk-bar { height: 100%; transform: scaleX(0); transform-origin: left; background: linear-gradient(90deg, #e2b54f, #c4613f, #6e2a22); transition: transform 80ms linear; }
 .ebar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--line); margin-top: 4px; }
 .ebar div { height: 100%; }
-.ekey { list-style: none; margin: 6px 0 0; padding: 0; font: 12px var(--mono); color: var(--ink); }
+.ekey { list-style: none; margin: 6px 0 0; padding: 0; font: 0.75rem var(--mono); color: var(--ink); }
 .ekey li { display: flex; justify-content: space-between; gap: 6px; }
 .ekey i { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-right: 6px; vertical-align: -1px; }
 
 .chart { display: block; width: 100%; height: 150px; margin-top: 1rem; }
 .chart.tall { height: 240px; }
-.mono { font: 13px var(--mono); white-space: pre-wrap; }
+.mono { font: 0.8125rem var(--mono); white-space: pre-wrap; }
 main p.mono { margin: 12px 0 0; line-height: 1.5; }
 
 .phases { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 20px; padding: 0; }
 .phases button { display: flex; align-items: baseline; gap: 6px; }
-.phases button span { font: 500 11px var(--mono); color: var(--muted); }
+.phases button span { font: 500 0.6875rem var(--mono); color: var(--muted); }
 /* code blocks */
 .source {
   height: 22rem; overflow: auto; margin: 0 0 12px; padding: 12px 0; background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
-  font: 12px/1.5 var(--mono); tab-size: 4;
+  font: 0.75rem/1.5 var(--mono); tab-size: 4;
 }
 .source.short { height: auto; }
 .source:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -144,10 +147,10 @@ summary { cursor: pointer; font-weight: 500; padding: 10px 0; }
 @media (hover: hover) and (pointer: fine) {
   h2:hover .anchor { opacity: 1; }
   .preset:hover { background: var(--hover); }
-  #snap:hover:not(:disabled) { text-decoration-color: var(--underline-hover); }
+  .snap:hover:not(:disabled) { text-decoration-color: var(--underline-hover); }
   /* .button.fire, to win over the .button hover of /shared/kowalski.css */
   .button.fire:hover:not(:disabled) { background: var(--muted); border-color: var(--muted); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .bubble { animation-name: fade-in, fade-out; }
+  .bubble { animation-name: fade-in; }
 }

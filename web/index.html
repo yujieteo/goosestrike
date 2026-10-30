@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="only light">
 <meta name="theme-color" content="#fdfdfc">
 <title>Goose Strike</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%AA%BF%3C/text%3E%3C/svg%3E">
@@ -21,7 +22,7 @@
 
   <figure>
     <div class="frame stage">
-      <canvas id="view" tabindex="0" aria-label="3D view of the goose and the panel" aria-describedby="cameraHint"></canvas>
+      <canvas id="view" class="view" tabindex="0" aria-label="3D view of the goose and the panel" aria-describedby="cameraHint"></canvas>
       <div id="bubble" class="bubble" hidden>HONK!</div>
       <div id="banner" class="banner"></div>
       <div class="legend" id="legend"></div>
@@ -74,10 +75,10 @@
     <h2 id="telemetry"><a class="anchor" href="#telemetry" aria-label="Link to Telemetry">#</a>Telemetry</h2>
     <figure>
       <div class="frame panel">
-        <dl id="tele"></dl>
+        <dl id="tele" class="tele"></dl>
         <div class="honk">
           <span>Honk-o-meter (contact force)</span>
-          <div class="meter"><div id="honkBar"></div></div>
+          <div class="meter"><div id="honkBar" class="honk-bar"></div></div>
         </div>
         <div class="energy">
           <span id="energyTitle">Goose energy</span>
