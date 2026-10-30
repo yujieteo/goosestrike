@@ -85,7 +85,8 @@ figcaption { margin-top: 16px; font-size: 12px; line-height: 16px; color: var(--
 .hint.ok { color: var(--good); }
 .hint.off { color: var(--bad); }
 /* #snap is a button in a sentence, so it looks like a link of /shared/kowalski.css */
-#snap { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline 0.08em var(--underline); text-underline-position: from-font; }
+#snap { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-decoration: underline 0.08em var(--underline); text-underline-position: from-font; }
+#snap:not(:disabled) { cursor: pointer; }
 
 .presets { margin: 1rem 0 0; border: 0; padding: 0; }
 .presets legend { font-weight: 500; padding: 0; float: left; width: 100%; margin-bottom: 4px; }
@@ -143,7 +144,7 @@ summary { cursor: pointer; font-weight: 500; padding: 10px 0; }
 @media (hover: hover) and (pointer: fine) {
   h2:hover .anchor { opacity: 1; }
   .preset:hover { background: var(--hover); }
-  #snap:hover { text-decoration-color: var(--underline-hover); }
+  #snap:hover:not(:disabled) { text-decoration-color: var(--underline-hover); }
   /* .button.fire, to win over the .button hover of /shared/kowalski.css */
   .button.fire:hover:not(:disabled) { background: var(--muted); border-color: var(--muted); }
 }
