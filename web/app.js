@@ -906,8 +906,9 @@ function drawFrame(now) {
     if (eng.tContact() >= 0 && !st.splatted) {
       st.splatted = true;
       splat(); honk(1.35); honk(1.5, 0.18);
-      const b = $("bubble"); b.hidden = false; b.style.animation = "none"; void b.offsetWidth; b.style.animation = "";
-      setTimeout(() => { b.hidden = true; }, 900);
+      const b = $("bubble"); b.hidden = false; b.classList.remove("out"); b.style.animation = "none"; void b.offsetWidth; b.style.animation = "";
+      setTimeout(() => b.classList.add("out"), 700);
+      setTimeout(() => { b.hidden = true; }, 860);
     }
     bannerText = `SIMULATING ${eng.gpu ? "on the GPU (WebGPU)" : "in Goose → WebAssembly"} · t = ${fmt(eng.time() * 1e6, 0)} µs of ${fmt(T_END * 1e6, 0)} µs · goose is now a fluid`;
     telemetry();
@@ -1111,7 +1112,7 @@ function showSpeed() {
   sc.className = "hint " + (on ? "ok" : "off");
   sc.innerHTML = on
     ? "On spec: 4 lb at V<sub>C</sub> = 350 KCAS, sea level. 14 CFR 25.571(e)(1)."
-    : `Off spec: the rule asks for V<sub>C</sub> = ${fmt(V_C, 2)} m/s. <button type="button" id="snap">Snap to V<sub>C</sub></button>. Science continues anyway.`;
+    : `Off spec: the rule asks for V<sub>C</sub> = ${fmt(V_C, 2)} m/s. <button type="button" id="snap" class="snap">Snap to V<sub>C</sub></button>. Science continues anyway.`;
   const snap = $("snap");
   if (snap) snap.onclick = () => {
     const focusSpeed = document.activeElement === snap;
