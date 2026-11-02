@@ -1,5 +1,8 @@
 # goosestrike
 
+A bird strike simulation on a stiffened fuselage panel: an explicit dynamics finite element solver that runs in the browser.
+Live page: https://teoyujie.org/play/goosestrike/
+
 A 4 lb bird hits a stiffened aluminium fuselage panel at V<sub>C</sub>, the load case of 14 CFR 25.571(e)(1).
 The solver is explicit dynamics, written in [Goose](https://github.com/aardappel/goose), compiled through C to WebAssembly.
 If the browser has WebGPU, the same solver runs on the GPU: WGSL compute shaders do each time step, and Goose makes the set-up and controls the GPU.
