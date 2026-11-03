@@ -57,6 +57,8 @@ The flight before contact is a cartoon. The simulation starts with the nose 2 mm
 
 The geometry is a representative assumption, not a drawing of a real aeroplane.
 
+<img src="docs/figures/panel.svg" width="680" alt="The panel at a scale of 1:12. The plan, seen from outside, shows four stringers along the fuselage and two frames around it, on the inner side, with clamped edges and the bird at the middle. Section A–A shows the curved skin, radius 1975 mm, with the stringers inside. Section B–B shows the skin with the two deeper frames. The 4 lb bird flies at 180 m/s onto the middle of the skin.">
+
 | Part | Value |
 |---|---|
 | Fuselage radius | 1.975 m (A320 class) |
@@ -216,6 +218,8 @@ The GPU solver has three parts:
 | `sim/gpu.goose` | Goose | The host. It calls `setup` of `strike.goose`, copies the bird and the panel to GPU buffers, makes a bind group for each kernel, records the time steps and reads back the results. It imports `strike.goose`, so the getters of the CPU solver give the GPU results. |
 | `sim/gpu.c` | C | The WebGPU calls, through `webgpu.h`. Goose cannot make the `webgpu.h` descriptors (they hold pointers) or give a callback, so `sim/gpu.goose` calls these C functions as `extern fn`. This file has no solver logic. |
 | `web/strike.wgsl` | WGSL | 11 compute kernels. One time step is 10 kernels in sequence: the five phases of `run_phase` in `strike.goose`, and a reduction that sums the energies and the forces, advances the time and computes the next time step. |
+
+<img src="docs/figures/step.svg" width="680" alt="One time step. The CPU solver runs the five phases of run_phase: 0 time step, 1 SPH bird, 2 shells, 3 contact, 4 integration. The GPU solver runs 10 kernels on the same phases: clear, bin_particles and sph; shell; bin_elements and contact; integrate_particles, integrate_nodes and elem_geom. Then reduce gives the next time step.">
 
 The WebGPU implementation is Emscripten's own port, `--use-port=emdawnwebgpu` (from the Dawn releases). The page gives the GPU device to the wasm module, so no C code waits for a promise.
 
