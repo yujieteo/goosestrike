@@ -1,31 +1,92 @@
-// The Goose solver compiled to WebAssembly, with typed views of its buffers.
-// loadEngine: the CPU solver (sim/strike.goose). loadGpuEngine: the same
-// solver on the GPU (sim/gpu.goose, with the kernels of web/strike.wgsl).
-import createModule from "./strike.mjs";
+import createModule, { type SolverModule } from "./strike.mjs";
+import type { GpuSolverModule } from "./strike-gpu.mjs";
 
-export const V_C = 350 * 1852 / 3600;  // 350 KCAS at sea level, m/s
-export const BIRD_MASS = 4 * 0.45359237; // 4 lb, kg
-export const RHO_BIRD = 950.0;         // kg/m^3
-export const C0_BIRD = 1480.0;         // m/s
-export const GAMMA_TAIT = 7.0;
-export const T_SKIN = 0.0016;          // default skin thickness, m
+export const V_C = 350 * 1852 / 3600;
+export const BIRD_MASS = 4 * 0.45359237;
+const RHO_BIRD = 950.0;
+const C0_BIRD = 1480.0;
+const GAMMA_TAIT = 7.0;
+export const T_SKIN = 0.0016;
 
-// The getters of strike.goose. Both modules have them: on the GPU,
-// gpu_poll puts the results in the same globals.
-function common(m) {
-  const lenPtr = m._malloc(8);
+export type SolverMode = 0 | 1;
+export const PANEL: SolverMode = 0;
+export const RIGID_WALL: SolverMode = 1;
 
-  // A const u8[:] export returns a pointer and writes the byte length.
-  // The bytes are copied, since Goose packs its globals without alignment.
-  function bytes(fn) {
+const BYTES_PER_I64 = 8;
+const SLICE_BYTES = 12;
+const WGSL_URL = "strike.wgsl";
+
+interface Engine {
+  bytes: (fn: (lenPtr: number) => number) => ArrayBuffer;
+  setSkin: (thickness: number) => void;
+  time: () => number;
+  dt: () => number;
+  steps: () => number;
+  tContact: () => number;
+  np: () => number;
+  nn: () => number;
+  ne: () => number;
+  particleMass: () => number;
+  spacing: () => number;
+  smoothing: () => number;
+  birdD: () => number;
+  birdL: () => number;
+  birdV: () => number;
+  contactForce: () => number;
+  centerForce: () => number;
+  sensorR: () => number;
+  impulse: () => number;
+  panelWork: () => number;
+  hourglassWork: () => number;
+  birdWork: () => number;
+  failed: () => number;
+  failedSkin: () => number;
+  maxPlasticStrain: () => number;
+  maxDeflection: () => number;
+  failStrain: (material: number) => number;
+  birdKE: () => number;
+  panelKE: () => number;
+  panelMass: () => number;
+  fillRender: () => void;
+  nodes: () => Float32Array;
+  particles: () => Float32Array;
+  pressure: () => Float32Array;
+  strain: () => Float32Array;
+  elements: () => Int32Array;
+}
+
+export interface CpuEngine extends Engine {
+  gpu: false;
+  setup: (mode: SolverMode, cells: number, spacing: number, speed: number) => number;
+  advance: (steps: number, tEnd: number) => number;
+  stepPhase: (tEnd: number) => number;
+}
+
+export interface GpuEngine extends Engine {
+  gpu: true;
+  errors: string[];
+  setup: (mode: SolverMode, cells: number, spacing: number, speed: number) => number;
+  run: (steps: number, tEnd: number) => number;
+  poll: () => number;
+  pending: () => number;
+  running: () => boolean;
+  history: () => Float32Array;
+  gpuObject: GPU;
+}
+
+export type AnyEngine = CpuEngine | GpuEngine;
+
+function common(m: SolverModule): Engine {
+  const lenPtr = m._malloc(BYTES_PER_I64);
+
+  function bytes(fn: (lenPtr: number) => number): ArrayBuffer {
     const ptr = fn(lenPtr);
     const len = Number(new BigInt64Array(m.HEAPU8.buffer, lenPtr, 1)[0]);
-    return m.HEAPU8.buffer.slice(ptr, ptr + len);
+    return m.HEAPU8.buffer.slice(ptr, ptr + len) as ArrayBuffer;
   }
 
   return {
     bytes,
-    // the skin thickness of the next set-up, m
     setSkin: (t) => m._set_skin(t),
     time: () => m._get_time(),
     dt: () => m._get_dt(),
@@ -55,8 +116,7 @@ function common(m) {
     birdKE: () => m._get_bird_ke(),
     panelKE: () => m._get_panel_ke(),
     panelMass: () => m._get_panel_mass(),
-    // render data, valid after fillRender() (CPU) or poll() (GPU)
-    fillRender: () => m._fill_render(),
+    fillRender: () => void m._fill_render(),
     nodes: () => new Float32Array(bytes(m._buf_nodes), 0, 3 * m._get_nn()),
     particles: () => new Float32Array(bytes(m._buf_particles), 0, 3 * m._get_np()),
     pressure: () => new Float32Array(bytes(m._buf_pressure), 0, m._get_np()),
@@ -65,23 +125,19 @@ function common(m) {
   };
 }
 
-export async function loadEngine() {
+export async function loadEngine(): Promise<CpuEngine> {
   const m = await createModule();
   m._goose_init(0, 0);
   return {
     ...common(m),
     gpu: false,
-    // mode 0: fuselage panel, 1: rigid wall. cells: skin elements along the
-    // panel (multiple of 8). spacing: bird particle lattice, m.
     setup: (mode, cells, spacing, speed) => m._setup(mode, cells, spacing, speed),
     advance: (steps, tEnd) => m._advance(steps, tEnd),
-    // runs the next phase of the step (see run_phase in strike.goose) and
-    // returns its number, or -1 at tEnd
     stepPhase: (tEnd) => m._step_phase(tEnd),
   };
 }
 
-async function text(name) {
+async function text(name: string): Promise<string> {
   const url = new URL(name, import.meta.url);
   if (url.protocol === "file:") {
     const { readFile } = await import("node:fs/promises");
@@ -92,26 +148,21 @@ async function text(name) {
   return r.text();
 }
 
-// The GPU solver, or null if this browser has no WebGPU adapter. gpu: the
-// GPU object (navigator.gpu in a browser).
-export async function loadGpuEngine(gpu = globalThis.navigator?.gpu) {
+export async function loadGpuEngine(gpu: GPU | undefined = globalThis.navigator?.gpu): Promise<GpuEngine | null> {
   const adapter = await gpu?.requestAdapter();
-  if (!adapter) return null;
+  if (!gpu || !adapter) return null;
   const device = await adapter.requestDevice();
-  const wgsl = new TextEncoder().encode(await text("strike.wgsl"));
+  const wgsl = new TextEncoder().encode(await text(WGSL_URL));
   const { default: createGpuModule } = await import("./strike-gpu.mjs");
-  const m = await createGpuModule({ preinitializedWebGPUDevice: device });
+  const m: GpuSolverModule = await createGpuModule({ preinitializedWebGPUDevice: device });
   m._goose_init(0, 0);
-  // a const u8[:] argument is a pointer to { data, len }
-  const src = m._malloc(wgsl.length), sl = m._malloc(12);
+  const src = m._malloc(wgsl.length), sl = m._malloc(SLICE_BYTES);
   m.HEAPU8.set(wgsl, src);
-  const dv = new DataView(m.HEAPU8.buffer, sl, 12);
+  const dv = new DataView(m.HEAPU8.buffer, sl, SLICE_BYTES);
   dv.setUint32(0, src, true);
   dv.setBigInt64(4, BigInt(wgsl.length), true);
-  const errors = [];
-  device.addEventListener("uncapturederror", (e) => errors.push(e.error.message));
-  // The kernels compile and bind (in a set-up of the smallest run), or
-  // loadGpuEngine throws.
+  const errors: string[] = [];
+  device.addEventListener("uncapturederror", (e) => errors.push((e as GPUUncapturedErrorEvent).error.message));
   device.pushErrorScope("validation");
   device.pushErrorScope("internal");
   const ok = m._gpu_init(sl) && m._gpu_setup(0, 56, 0.009, V_C);
@@ -123,37 +174,21 @@ export async function loadGpuEngine(gpu = globalThis.navigator?.gpu) {
   return {
     ...base,
     gpu: true,
-    // the WebGPU validation errors so far
     errors,
-    // as setup of the CPU engine
     setup: (mode, cells, spacing, speed) => m._gpu_setup(mode, cells, spacing, speed),
-    // sends `steps` steps (at most 512) and a read-back of their results,
-    // and returns the steps, or 0 while two runs are not read back. The GPU
-    // does no step at or after tEnd (s), the same for each run.
     run: (steps, tEnd) => m._gpu_run(steps, tEnd),
-    // setup and poll fill the render data
     fillRender: () => {},
-    // 1 when the results of the oldest run that is not read back are in,
-    // 0 while the GPU works (or no run is pending), -1 if the read-back failed
     poll: () => m._gpu_poll(),
-    // the runs that poll did not read back
     pending: () => m._gpu_pending(),
-    // false when the GPU reached tEnd (the f32 time can end just below it)
     running: () => m._gpu_running() !== 0,
-    // a Float32Array of 4 per step since the set-up: time, contact force,
-    // sensor force, max deflection
     history: () => new Float32Array(base.bytes(m._gpu_buf_hist), 0, 4 * Math.min(m._get_steps(), m._gpu_hist_cap())),
     birdKE: () => m._gpu_bird_ke(),
     panelKE: () => m._gpu_panel_ke(),
-    // Node's webgpu package stops the device when its GPU object is
-    // collected, so the engine keeps it.
     gpuObject: gpu,
   };
 }
 
-// Pressure behind the shock when the Tait bird hits a rigid wall at v:
-// rho0 Us = rho1 (Us - v) and p1 = rho0 Us v = p(rho1). Returns [p, Us].
-export function hugoniot(v) {
+export function hugoniot(v: number): [number, number] {
   const b = (RHO_BIRD * C0_BIRD * C0_BIRD) / GAMMA_TAIT;
   let lo = RHO_BIRD * 1.000001;
   let hi = RHO_BIRD * 2.0;
@@ -167,7 +202,6 @@ export function hugoniot(v) {
   return [RHO_BIRD * us * v, us];
 }
 
-// Steady-flow stagnation pressure (Wilbeck), Pa.
-export function stagnation(v) {
+export function stagnation(v: number): number {
   return 0.5 * RHO_BIRD * v * v;
 }

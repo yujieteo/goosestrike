@@ -19,7 +19,8 @@ python3 -m http.server -d web 8000
 ```
 
 A local server has no `/shared/kowalski.css`, so the page shows without the fonts, colours, button look and focus ring of the site. The buttons show as plain browser buttons.
-The repository has the built `web/strike.wasm` and `web/strike-gpu.wasm`, so the page needs no build step.
+The repository has the built `web/strike.wasm`, `web/strike-gpu.wasm` and `web/app.js`, so the page needs no build step.
+`web/app.js` is the bundle of `web/app.ts`. After you change a TypeScript file in `web/`, run `bun run build:web`.
 The page uses the GPU solver if the browser has WebGPU and the GPU solver starts, else the CPU solver. Add `?solver=cpu` to the URL to use the CPU solver.
 This is not a certification analysis. The page and this README say where the model is coarse.
 
@@ -190,7 +191,7 @@ The 9 mm mesh is the fast default on the CPU. The trade: its peak pressure is 43
 - The skin thickness control sets the skin of the next run, from 0.8 mm to 3.2 mm. The stringers and frames keep their 1.6 mm. The preset values on the page are for the 1.6 mm skin only.
 - The telemetry shows the solver (GPU or CPU), the solver time per step and the frame rate.
 - "Export GIF" saves the last run as an animated GIF, 480 px wide: about ten frames a second of the approach, then one frame each 25 µs of simulated time.
-  Each frame has a caption with the time and the colour bar. The encoder is `web/gif.mjs` (median cut palette, LZW), with no dependency.
+  Each frame has a caption with the time and the colour bar. The encoder is `web/gif.ts` (median cut palette, LZW), with no dependency.
 - The colour maps are continuous ramps, interpolated in OKLab: plastic strain on a square-root scale from the bare metal (0 %) to 18 %, so that the first yield shows, and bird pressure on a log scale from 0.1 MPa to 400 MPa.
 - Each shell element has a thin outline, and the panel edges, the free flanges and the lines where a stringer or a frame meets the skin have a heavier outline. Thus the shape of the panel shows over the strain colours.
 - The look (fonts, palette, interaction rules) is that of [teoyujie.org](https://teoyujie.org): the page links the site's shared stylesheet `/shared/kowalski.css`. `web/style.css` has only the rules of this tool.
@@ -230,7 +231,7 @@ The GPU solver is a port of the CPU solver, with these differences:
 - The shell and contact forces on the nodes are sums with atomic operations, so the sequence of the additions changes from run to run. Thus the GPU results are not bit-for-bit repeatable.
 - The page keeps two batches of steps on the GPU. Thus the GPU does the next batch while the page reads the results of the last one.
 
-`test/gpu.test.mjs` runs the 9 mm panel to 3 ms on the GPU and on the CPU, and compares them. The tolerances are about 10 times the differences on Metal:
+`test/gpu.test.ts` runs the 9 mm panel to 3 ms on the GPU and on the CPU, and compares them. The tolerances are about 10 times the differences on Metal:
 
 | Value | Tolerance | Difference on Metal |
 |---|---|---|
@@ -285,11 +286,24 @@ They are in the repository so that you can read the code that Emscripten compile
 ## Tests
 
 ```sh
-nix shell nixpkgs#nodejs --command npm ci
-nix shell nixpkgs#nodejs --command npm test
+nix shell nixpkgs#bun nixpkgs#clang --command bun install --frozen-lockfile
+nix shell nixpkgs#bun nixpkgs#clang --command bun run check
 ```
 
-The tests (`test/strike.test.mjs`) load the committed `web/strike.wasm` in Node and check:
+`bun run check` is the one local check script (`scripts/check.ts`). It runs these steps in order, and each step has a name that you can give as an argument:
+
+- `typecheck`: `tsc --noEmit` with `strict`, `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`,
+- `comments`: no comment in the TypeScript files, except a link to an outside source (the excluded files are in `scripts/config.ts`),
+- `nondeterminism`: no `Math.random`, `Date.now` or `performance.now` in the files of the solver wrapper and the GIF encoder,
+- `dead-code`: knip fails on an unused file, export or dependency,
+- `bundle`: `web/app.js` is the bundle of `web/app.ts`,
+- `budget`: the gzipped first load of `index.html` is under 120 KB (86.9 KB with the CPU solver, 115.4 KB with the GPU solver),
+- `sanitizer`: `test/sanitize/main.c` runs the CPU solver in `gen/strike.c` with `-fsanitize=undefined,address -fno-sanitize-recover=all`,
+- `tests`: `bun test`, with `GOOSESTRIKE_CAPTURE` set so that the tests write their inputs to a cache outside the repository,
+- `replay`: process replay. It runs the captured inputs (solver runs and GIF encodes) on `origin/main` and on this tree, and fails on any difference in the output.
+  Use `bun run check replay --accept` to accept a difference that the change must make. It stops early when more than 20 % of the outputs differ. CI does not run it.
+
+The tests (`test/strike.test.ts`) load the committed `web/strike.wasm` in Bun and check:
 
 - that the C in `gen/` and the two wasm files come from the current sources (the sums in `gen/sha256sums`), and that `web/strike.goose` is the same as `sim/strike.goose`,
 - the load case constants and the Wilbeck reference pressures,
@@ -297,12 +311,13 @@ The tests (`test/strike.test.mjs`) load the committed `web/strike.wasm` in Node 
 - the panel energy balance (within 1 %), the panel mass, and that a new set-up gives the same result,
 - that the phases one at a time (`step_phase`) give the same result as whole steps (`advance`).
 
-`test/gpu.test.mjs` compares the GPU solver with the CPU solver (see "Goose on WebGPU"). It gets WebGPU in Node from the `webgpu` package (Dawn), a development dependency.
+`test/gpu.test.mjs` compares the GPU solver with the CPU solver (see "Goose on WebGPU"). It gets WebGPU in Bun from the `webgpu` package (Dawn), a development dependency.
 If there is no GPU adapter, these tests skip, but with `GOOSESTRIKE_GPU=1` they fail.
 
-`test/gif.test.mjs` checks that the GIF palette keeps a colour ramp next to a large light background.
+`test/gif.test.ts` checks that the GIF palette keeps a colour ramp next to a large light background.
+`test/properties.test.ts` has property tests (fast-check) for the Hugoniot pressure and for the GIF encoder.
 
-CI runs the same tests on each push. CI installs lavapipe, a Vulkan driver that runs on the CPU, and sets `GOOSESTRIKE_GPU=1`. Thus CI also runs the GPU tests.
+CI runs `bun run check` (without the replay) on each push. CI installs lavapipe, a Vulkan driver that runs on the CPU, and sets `GOOSESTRIKE_GPU=1`. Thus CI also runs the GPU tests.
 
 ## Sources
 

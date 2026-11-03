@@ -1,0 +1,4 @@
+{
+  "entry": ["web/app.ts", "scripts/replay-runner.ts", "test/*.test.ts"],
+  "project": ["web/**/*.ts", "web/**/*.mts", "test/**/*.ts", "scripts/**/*.ts"]
+}
