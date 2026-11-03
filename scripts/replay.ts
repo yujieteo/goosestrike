@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, readdirSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, rmSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { REPLAY } from "./config.ts";
 
@@ -38,7 +38,7 @@ async function* lines(stream: ReadableStream<Uint8Array>): AsyncGenerator<Line> 
 
 export async function replay(root: string, accept: boolean): Promise<string[]> {
   const inputs = cacheDir() + "/inputs";
-  const total = readdirSync(inputs).length;
+  const total = existsSync(inputs) ? readdirSync(inputs).length : 0;
   if (total === 0) return [`${inputs} has no captured input: run the tests with GOOSESTRIKE_CAPTURE=${inputs}`];
   const base = sh(root, ["git", "rev-parse", "--verify", REPLAY.baseRef]);
   const work = mkdtempSync(`${tmpdir()}/goosestrike-replay-run-`);
@@ -57,6 +57,7 @@ export async function replay(root: string, accept: boolean): Promise<string[]> {
     const a = start(baseTree), b = start(branchTree);
     const baseLines: Line[] = [], branchLines: Line[] = [];
     const diffs: string[] = [];
+    const errors: string[] = [];
     let stopped = false;
     let compared = 0;
     const compare = (): void => {
@@ -64,6 +65,9 @@ export async function replay(root: string, accept: boolean): Promise<string[]> {
         const x = baseLines[compared], y = branchLines[compared];
         compared++;
         if (x === undefined || y === undefined) continue;
+        for (const [side, l] of [["base", x], ["branch", y]] as const) {
+          if ("error" in (JSON.parse(l.output) as object)) errors.push(`${l.name} failed on ${side}: ${l.output}`);
+        }
         if (x.output !== y.output) diffs.push(`${x.name}\n  base:   ${x.output}\n  branch: ${y.output}`);
         if (diffs.length > REPLAY.largeChangeFraction * total && !stopped) { stopped = true; a.kill(); b.kill(); }
       }
@@ -78,6 +82,7 @@ export async function replay(root: string, accept: boolean): Promise<string[]> {
     if (baseLines.length !== total || branchLines.length !== total) {
       return [`replay produced ${baseLines.length} base and ${branchLines.length} branch outputs for ${total} inputs`];
     }
+    if (errors.length) return errors;
     if (diffs.length === 0) return [];
     if (accept) {
       console.log(diffs.join("\n"));

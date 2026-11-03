@@ -296,7 +296,7 @@ nix shell nixpkgs#bun nixpkgs#clang --command bun run check
 - `comments`: no comment in the TypeScript files, except a link to an outside source (the excluded files are in `scripts/config.ts`),
 - `nondeterminism`: no `Math.random`, `Date.now` or `performance.now` in the files of the solver wrapper and the GIF encoder,
 - `dead-code`: knip fails on an unused file, export or dependency,
-- `bundle`: `web/app.js` is the bundle of `web/app.ts`,
+- `bundle`: `web/app.js` is the bundle of `web/app.ts`. The step fails when Bun is not the version in `packageManager` in `package.json`, because a different Bun can write a different bundle,
 - `budget`: the gzipped first load of `index.html` is under 120 KB (86.9 KB with the CPU solver, 115.4 KB with the GPU solver),
 - `sanitizer`: `test/sanitize/main.c` runs the CPU solver in `gen/strike.c` with `-fsanitize=undefined,address -fno-sanitize-recover=all`,
 - `tests`: `bun test`, with `GOOSESTRIKE_CAPTURE` set so that the tests write their inputs to a cache outside the repository,
@@ -311,7 +311,7 @@ The tests (`test/strike.test.ts`) load the committed `web/strike.wasm` in Bun an
 - the panel energy balance (within 1 %), the panel mass, and that a new set-up gives the same result,
 - that the phases one at a time (`step_phase`) give the same result as whole steps (`advance`).
 
-`test/gpu.test.mjs` compares the GPU solver with the CPU solver (see "Goose on WebGPU"). It gets WebGPU in Bun from the `webgpu` package (Dawn), a development dependency.
+`test/gpu.test.ts` compares the GPU solver with the CPU solver (see "Goose on WebGPU"). It gets WebGPU in Bun from the `webgpu` package (Dawn), a development dependency.
 If there is no GPU adapter, these tests skip, but with `GOOSESTRIKE_GPU=1` they fail.
 
 `test/gif.test.ts` checks that the GIF palette keeps a colour ramp next to a large light background.

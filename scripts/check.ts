@@ -16,6 +16,8 @@ function run(cmd: string[], env: Record<string, string> = {}): string[] {
 }
 
 function bundleIsFresh(): string[] {
+  const pinned = (JSON.parse(readFileSync(`${root}/package.json`, "utf8")) as { packageManager: string }).packageManager;
+  if (pinned !== `bun@${Bun.version}`) return [`the bundle needs ${pinned}, not bun@${Bun.version}`];
   const out = `${tmpdir()}/goosestrike-bundle.js`;
   const problems = buildBundle(root, out);
   if (problems.length) return problems;

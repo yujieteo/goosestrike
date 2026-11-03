@@ -2,6 +2,7 @@
   "name": "goosestrike",
   "private": true,
   "license": "MIT",
+  "packageManager": "bun@1.4.2",
   "scripts": {
     "test": "bun test --timeout 600000",
     "typecheck": "tsc --noEmit",
