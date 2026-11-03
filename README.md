@@ -290,6 +290,8 @@ nix shell nixpkgs#bun nixpkgs#clang --command bun install --frozen-lockfile
 nix shell nixpkgs#bun nixpkgs#clang --command bun run check
 ```
 
+The `bundle` step needs the Bun version in `packageManager` in `package.json` (1.4.2). If `nixpkgs#bun` has a different version, install that version with `curl -fsSL https://bun.sh/install | bash -s bun-v1.4.2`.
+
 `bun run check` is the one local check script (`scripts/check.ts`). It runs these steps in order, and each step has a name that you can give as an argument:
 
 - `typecheck`: `tsc --noEmit` with `strict`, `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`,

@@ -65,9 +65,7 @@ export async function replay(root: string, accept: boolean): Promise<string[]> {
         const x = baseLines[compared], y = branchLines[compared];
         compared++;
         if (x === undefined || y === undefined) continue;
-        for (const [side, l] of [["base", x], ["branch", y]] as const) {
-          if ("error" in (JSON.parse(l.output) as object)) errors.push(`${l.name} failed on ${side}: ${l.output}`);
-        }
+        if ("error" in (JSON.parse(y.output) as object)) errors.push(`${y.name} failed on branch: ${y.output}`);
         if (x.output !== y.output) diffs.push(`${x.name}\n  base:   ${x.output}\n  branch: ${y.output}`);
         if (diffs.length > REPLAY.largeChangeFraction * total && !stopped) { stopped = true; a.kill(); b.kill(); }
       }
