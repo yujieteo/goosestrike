@@ -286,9 +286,11 @@ They are in the repository so that you can read the code that Emscripten compile
 ## Tests
 
 ```sh
-nix shell nixpkgs#bun nixpkgs#clang --command bun install --frozen-lockfile
-nix shell nixpkgs#bun nixpkgs#clang --command bun run check
+nix shell nixpkgs#bun --command bun install --frozen-lockfile
+nix shell nixpkgs#bun --command bun run check
 ```
+
+The `sanitizer` step uses the `clang` on `PATH`. On macOS, use the Xcode clang: the ASan runtime of `nixpkgs#clang` stops at start. On Linux, add `nixpkgs#clang` to the `nix shell` command.
 
 The `bundle` step needs the Bun version in `packageManager` in `package.json` (1.4.2). If `nixpkgs#bun` has a different version, install that version with `curl -fsSL https://bun.sh/install | bash -s bun-v1.4.2`.
 
