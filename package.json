@@ -2,10 +2,19 @@
   "name": "goosestrike",
   "private": true,
   "license": "MIT",
+  "packageManager": "bun@1.4.2",
   "scripts": {
-    "test": "node --test"
+    "test": "bun test --timeout 600000",
+    "typecheck": "tsc --noEmit",
+    "build:web": "bun run scripts/bundle.ts",
+    "check": "bun run scripts/check.ts"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "fast-check": "^4.10.2",
+    "knip": "^6.44.1",
+    "ts-parser": "npm:typescript@5.9.3",
+    "typescript": "^7.0.2",
     "webgpu": "0.6.2"
   }
 }
