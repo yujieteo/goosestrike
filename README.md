@@ -298,7 +298,7 @@ The `bundle` step needs the Bun version in `packageManager` in `package.json` (1
 
 - `typecheck`: `tsc --noEmit` with `strict`, `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`,
 - `comments`: no comment in the TypeScript files, except a link to an outside source (the excluded files are in `scripts/config.ts`),
-- `nondeterminism`: no `Math.random`, `Date.now` or `performance.now` in the files of the solver wrapper and the GIF encoder,
+- `nondeterminism`: no call that gives a different result on each run (`Math.random`, `Date.now` and others) in the files of the solver wrapper and the GIF encoder. The lists are in `scripts/config.ts`,
 - `dead-code`: knip fails on an unused file, export or dependency,
 - `bundle`: `web/app.js` is the bundle of `web/app.ts`. The step fails when Bun is not the version in `packageManager` in `package.json`, because a different Bun can write a different bundle,
 - `budget`: the gzipped first load of `index.html` is under 120 KB (86.9 KB with the CPU solver, 115.4 KB with the GPU solver),
