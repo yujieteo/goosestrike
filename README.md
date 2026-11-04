@@ -4,7 +4,7 @@ A bird strike simulation on a stiffened fuselage panel: an explicit dynamics fin
 
 Live page: <https://teoyujie.org/play/goosestrike/>
 
-A 4 lb bird hits a stiffened aluminium fuselage panel at VC, the load case of 14 CFR 25.571(e)(1).
+A 4 lb bird hits a stiffened aluminium fuselage panel at $V_C$, the load case of 14 CFR 25.571(e)(1).
 The solver is explicit dynamics, written in [Goose](https://github.com/aardappel/goose), compiled through C to WebAssembly.
 If the browser has WebGPU, the same solver runs on the GPU. WGSL compute shaders do each time step, and Goose makes the set-up and controls the GPU.
 The GPU solver runs finer meshes in seconds, and the page lets you change the bird speed and the skin thickness.
@@ -30,14 +30,14 @@ This is not a certification analysis. The page and this README say where the mod
 14 CFR 25.571(e)(1), as amended to Amendment 25-148 ([text at law.cornell.edu](https://www.law.cornell.edu/cfr/text/14/25.571)):
 
 > (e) Damage-tolerance (discrete source) evaluation. The airplane must be capable of successfully completing a flight during which likely structural damage occurs as a result of—
-> (1) Impact with a 4-pound bird when the velocity of the airplane relative to the bird along the airplane's flight path is equal to VC at sea level or 0.85VC at 8,000 feet, whichever is more critical;
+> (1) Impact with a 4-pound bird when the velocity of the airplane relative to the bird along the airplane's flight path is equal to $V_C$ at sea level or 0.85$V_C$ at 8,000 feet, whichever is more critical;
 
 | Quantity | Value | Source |
 |---|---|---|
 | Bird mass | 4 lb = 1.81436948 kg | the rule, and 1 lb = 0.45359237 kg |
-| VC | 350 KCAS | 14 CFR 25.1505: VMO must not be greater than VC. The A320 has VMO = 350 kt ([EASA TCDS EASA.A.064](https://www.easa.europa.eu/en/document-library/type-certificates/aircraft-cs-25-cs-22-cs-23-cs-vla-cs-lsa/easaa064-airbus-a318-a319-a320), Issue 62, Section 1 A320). Thus 350 KCAS is the lowest VC that the rule allows for this aeroplane. |
+| $V_C$ | 350 KCAS | 14 CFR 25.1505: $V_{MO}$ must not be greater than $V_C$. The A320 has $V_{MO}$ = 350 kt ([EASA TCDS EASA.A.064](https://www.easa.europa.eu/en/document-library/type-certificates/aircraft-cs-25-cs-22-cs-23-cs-vla-cs-lsa/easaa064-airbus-a318-a319-a320), Issue 62, Section 1 A320). Thus 350 KCAS is the lowest $V_C$ that the rule allows for this aeroplane. |
 | Impact speed | 180.06 m/s | 350 KCAS = 350 KTAS at sea level ISA. 1 kt = 1852/3600 m/s. |
-| Altitude | sea level | 0.85 VC at 8000 ft is about 0.96 VC true airspeed, so the sea-level case is more critical. |
+| Altitude | sea level | 0.85 $V_C$ at 8000 ft is about 0.96 $V_C$ true airspeed, so the sea-level case is more critical. |
 | Direction | normal to the skin, at the middle of the panel | an idealized worst case |
 
 ## The bird: physics and costume
@@ -50,7 +50,7 @@ The cartoon goose is only paint on it.
 | Shape | cylinder with hemispherical ends, length/diameter = 2 | Heimbs 2011, Perdikoulis et al. 2021 |
 | Size | diameter 113.1 mm, length 226.2 mm | from the mass and the density |
 | Material | gelatin with 10 % porosity, 950 kg/m³ | Perdikoulis et al. 2021, after Barber et al. |
-| Equation of state | Tait for water: p = (ρ0c0²/γ)((ρ/ρ0)^γ − 1), c0 = 1480 m/s, γ = 7, no tension (p ≥ 0) | Heimbs 2011 |
+| Equation of state | Tait for water: p = $(\rho_0 c_0^2/\gamma)((\rho/\rho_0)^\gamma - 1)$, $c_0$ = 1480 m/s, γ = 7, no tension (p ≥ 0) | Heimbs 2011 |
 
 The costume (white feathers, eyes, beak, wings, feet, head tuft and blush) follows the particles. It has no mass and no effect on the result.
 The flight before contact is a cartoon. The simulation starts with the nose 2 mm plus half a particle spacing from the skin.
@@ -59,7 +59,8 @@ The flight before contact is a cartoon. The simulation starts with the nose 2 mm
 
 The geometry is a representative assumption, not a drawing of a real aeroplane.
 
-![The panel at a scale of 1:12. The plan, seen from outside, shows four stringers along the fuselage and two frames around it, on the inner side, with clamped edges and the bird at the middle. Section A–A shows the curved skin, radius 1975 mm, with the stringers inside. Section B–B shows the skin with the two deeper frames. The 4 lb bird flies at 180 m/s onto the middle of the skin.](docs/figures/panel.svg)
+<!-- goosemarklint-disable-next-line MD033: the width of 680 px keeps the figure size -->
+<img src="docs/figures/panel.svg" width="680" alt="The panel at a scale of 1:12. The plan, seen from outside, shows four stringers along the fuselage and two frames around it, on the inner side, with clamped edges and the bird at the middle. Section A–A shows the curved skin, radius 1975 mm, with the stringers inside. Section B–B shows the skin with the two deeper frames. The 4 lb bird flies at 180 m/s onto the middle of the skin.">
 
 | Part | Value |
 |---|---|
@@ -96,14 +97,14 @@ The energy balance closes in all runs below. The total energy stays within 0.4 %
 
 Wilbeck (1978) gives two pressures at the centre of a soft body that hits a rigid wall:
 
-- the Hugoniot shock pressure at first contact, PH = ρ0 Us v. Here Us comes from the jump conditions with the same Tait equation of state.
-- the stagnation pressure of the steady flow after the shock, Ps = ½ ρ0 v².
+- the Hugoniot shock pressure at first contact, $P_H$ = $\rho_0$ $U_s$ v. Here $U_s$ comes from the jump conditions with the same Tait equation of state.
+- the stagnation pressure of the steady flow after the shock, $P_s$ = ½ $\rho_0$ v².
 
-At 180.06 m/s, PH = 314.4 MPa (Us = 1838 m/s) and Ps = 15.40 MPa.
+At 180.06 m/s, $P_H$ = 314.4 MPa ($U_s$ = 1838 m/s) and $P_s$ = 15.40 MPa.
 The solver measures the force on a disc of radius D/8 (14.2 mm) at the impact centre.
 "Peak" is the maximum. "Plateau" is the mean from 0.25 to 0.75 of the squash-up time L/v = 1260 µs.
 
-| Bird spacing | Particles | Peak (MPa) | Peak vs PH | Plateau (MPa) | Plateau vs Ps | Impulse / m v | Energy balance |
+| Bird spacing | Particles | Peak (MPa) | Peak vs $P_H$ | Plateau (MPa) | Plateau vs $P_s$ | Impulse / m v | Energy balance |
 |---|---|---|---|---|---|---|---|
 | 9 mm | 2560 | 180.5 | −42.6 % | 19.37 | +25.8 % | 1.0079 | 0.9997 |
 | 6 mm | 8760 | 317.4 | +0.9 % | 19.67 | +27.7 % | 0.9955 | 1.0006 |
@@ -111,7 +112,7 @@ The solver measures the force on a disc of radius D/8 (14.2 mm) at the impact ce
 | 3.5 mm | 44412 | 350.1 | +11.3 % | 15.90 | +3.2 % | 0.9921 | 1.0000 |
 
 The impulse is m v within 1 %, and the energy balance closes within 0.1 %.
-The plateau converges to Ps as the spacing decreases, to +3.2 % at 3.5 mm.
+The plateau converges to $P_s$ as the spacing decreases, to +3.2 % at 3.5 mm.
 The peak converges less well. At 9 mm, the smoothing length (10.9 mm) smears the shock, and the peak is 43 % low.
 At 6 mm and 4.5 mm the peak is within 3 %, and at 3.5 mm it is 11 % high.
 The peak is the maximum of one time step on a 14 mm disc, so it is noisy. Use it as an order-of-magnitude check, and the plateau as the convergence check.
@@ -247,7 +248,7 @@ The test also runs the rigid wall on the GPU: the impulse is m v within 2 %, and
 
 The GPU and the CPU agree less well on the plateau of the rigid wall check. The centre sensor force changes by about 20 % from step to step, so small differences change its mean.
 
-| Bird spacing | Peak vs PH, CPU / GPU | Plateau vs Ps, CPU / GPU | Impulse / m v, CPU / GPU |
+| Bird spacing | Peak vs $P_H$, CPU / GPU | Plateau vs $P_s$, CPU / GPU | Impulse / m v, CPU / GPU |
 |---|---|---|---|
 | 9 mm | −42.6 % / −42.6 % | +25.8 % / +25.8 % | 1.0079 / 1.0079 |
 | 6 mm | +0.9 % / +0.9 % | +27.7 % / +25.8 % to +26.5 % | 0.9955 / 0.9957 |
