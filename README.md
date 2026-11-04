@@ -1,13 +1,14 @@
 # goosestrike
 
 A bird strike simulation on a stiffened fuselage panel: an explicit dynamics finite element solver that runs in the browser.
-Live page: https://teoyujie.org/play/goosestrike/
 
-A 4 lb bird hits a stiffened aluminium fuselage panel at V<sub>C</sub>, the load case of 14 CFR 25.571(e)(1).
+Live page: <https://teoyujie.org/play/goosestrike/>
+
+A 4 lb bird hits a stiffened aluminium fuselage panel at VC, the load case of 14 CFR 25.571(e)(1).
 The solver is explicit dynamics, written in [Goose](https://github.com/aardappel/goose), compiled through C to WebAssembly.
-If the browser has WebGPU, the same solver runs on the GPU: WGSL compute shaders do each time step, and Goose makes the set-up and controls the GPU.
+If the browser has WebGPU, the same solver runs on the GPU. WGSL compute shaders do each time step, and Goose makes the set-up and controls the GPU.
 The GPU solver runs finer meshes in seconds, and the page lets you change the bird speed and the skin thickness.
-It runs in a browser page that shows the bird as a cartoon goose, shows the Goose code that runs, and exports the strike as an animated GIF.
+It runs in a browser page. The page shows the bird as a cartoon goose, shows the Goose code that runs, and exports the strike as an animated GIF.
 
 ![The goose hits the panel](docs/strike.png)
 
@@ -29,14 +30,14 @@ This is not a certification analysis. The page and this README say where the mod
 14 CFR 25.571(e)(1), as amended to Amendment 25-148 ([text at law.cornell.edu](https://www.law.cornell.edu/cfr/text/14/25.571)):
 
 > (e) Damage-tolerance (discrete source) evaluation. The airplane must be capable of successfully completing a flight during which likely structural damage occurs as a result of—
-> (1) Impact with a 4-pound bird when the velocity of the airplane relative to the bird along the airplane's flight path is equal to V<sub>C</sub> at sea level or 0.85V<sub>C</sub> at 8,000 feet, whichever is more critical;
+> (1) Impact with a 4-pound bird when the velocity of the airplane relative to the bird along the airplane's flight path is equal to VC at sea level or 0.85VC at 8,000 feet, whichever is more critical;
 
 | Quantity | Value | Source |
 |---|---|---|
 | Bird mass | 4 lb = 1.81436948 kg | the rule, and 1 lb = 0.45359237 kg |
-| V<sub>C</sub> | 350 KCAS | 14 CFR 25.1505: V<sub>MO</sub> must not be greater than V<sub>C</sub>. The A320 has V<sub>MO</sub> = 350 kt ([EASA TCDS EASA.A.064](https://www.easa.europa.eu/en/document-library/type-certificates/aircraft-cs-25-cs-22-cs-23-cs-vla-cs-lsa/easaa064-airbus-a318-a319-a320), Issue 62, Section 1 A320). Thus 350 KCAS is the lowest V<sub>C</sub> that the rule allows for this aeroplane. |
+| VC | 350 KCAS | 14 CFR 25.1505: VMO must not be greater than VC. The A320 has VMO = 350 kt ([EASA TCDS EASA.A.064](https://www.easa.europa.eu/en/document-library/type-certificates/aircraft-cs-25-cs-22-cs-23-cs-vla-cs-lsa/easaa064-airbus-a318-a319-a320), Issue 62, Section 1 A320). Thus 350 KCAS is the lowest VC that the rule allows for this aeroplane. |
 | Impact speed | 180.06 m/s | 350 KCAS = 350 KTAS at sea level ISA. 1 kt = 1852/3600 m/s. |
-| Altitude | sea level | 0.85 V<sub>C</sub> at 8000 ft is about 0.96 V<sub>C</sub> true airspeed, so the sea-level case is more critical. |
+| Altitude | sea level | 0.85 VC at 8000 ft is about 0.96 VC true airspeed, so the sea-level case is more critical. |
 | Direction | normal to the skin, at the middle of the panel | an idealized worst case |
 
 ## The bird: physics and costume
@@ -49,16 +50,16 @@ The cartoon goose is only paint on it.
 | Shape | cylinder with hemispherical ends, length/diameter = 2 | Heimbs 2011, Perdikoulis et al. 2021 |
 | Size | diameter 113.1 mm, length 226.2 mm | from the mass and the density |
 | Material | gelatin with 10 % porosity, 950 kg/m³ | Perdikoulis et al. 2021, after Barber et al. |
-| Equation of state | Tait for water: p = (ρ<sub>0</sub>c<sub>0</sub>²/γ)((ρ/ρ<sub>0</sub>)<sup>γ</sup> − 1), c<sub>0</sub> = 1480 m/s, γ = 7, no tension (p ≥ 0) | Heimbs 2011 |
+| Equation of state | Tait for water: p = (ρ0c0²/γ)((ρ/ρ0)^γ − 1), c0 = 1480 m/s, γ = 7, no tension (p ≥ 0) | Heimbs 2011 |
 
-The costume (white feathers, eyes, beak, wings, feet, head tuft and blush) follows the particles, but it has no mass and no effect on the result.
+The costume (white feathers, eyes, beak, wings, feet, head tuft and blush) follows the particles. It has no mass and no effect on the result.
 The flight before contact is a cartoon. The simulation starts with the nose 2 mm plus half a particle spacing from the skin.
 
 ## The panel
 
 The geometry is a representative assumption, not a drawing of a real aeroplane.
 
-<img src="docs/figures/panel.svg" width="680" alt="The panel at a scale of 1:12. The plan, seen from outside, shows four stringers along the fuselage and two frames around it, on the inner side, with clamped edges and the bird at the middle. Section A–A shows the curved skin, radius 1975 mm, with the stringers inside. Section B–B shows the skin with the two deeper frames. The 4 lb bird flies at 180 m/s onto the middle of the skin.">
+![The panel at a scale of 1:12. The plan, seen from outside, shows four stringers along the fuselage and two frames around it, on the inner side, with clamped edges and the bird at the middle. Section A–A shows the curved skin, radius 1975 mm, with the stringers inside. Section B–B shows the skin with the two deeper frames. The 4 lb bird flies at 180 m/s onto the middle of the skin.](docs/figures/panel.svg)
 
 | Part | Value |
 |---|---|
@@ -89,20 +90,20 @@ All of it is in `sim/strike.goose`. Units are SI.
 - Time: central differences. The stable time step comes from the smallest shell element and from the SPH sound speed (CFL 0.25 for SPH, 0.9 for the shells).
 - Memory: all state is fixed-size global arrays in static data. The time loop allocates nothing.
 
-The energy balance closes: bird kinetic energy + bird internal energy + panel kinetic energy + panel internal work stays within 0.4 % of the initial kinetic energy in all runs below.
+The energy balance closes in all runs below. The total energy stays within 0.4 % of the initial kinetic energy. The total is bird kinetic energy + bird internal energy + panel kinetic energy + panel internal work.
 
 ## Accuracy: the rigid wall check
 
 Wilbeck (1978) gives two pressures at the centre of a soft body that hits a rigid wall:
 
-- the Hugoniot shock pressure at first contact, P<sub>H</sub> = ρ<sub>0</sub> U<sub>s</sub> v. Here U<sub>s</sub> comes from the jump conditions with the same Tait equation of state.
-- the stagnation pressure of the steady flow after the shock, P<sub>s</sub> = ½ ρ<sub>0</sub> v².
+- the Hugoniot shock pressure at first contact, PH = ρ0 Us v. Here Us comes from the jump conditions with the same Tait equation of state.
+- the stagnation pressure of the steady flow after the shock, Ps = ½ ρ0 v².
 
-At 180.06 m/s, P<sub>H</sub> = 314.4 MPa (U<sub>s</sub> = 1838 m/s) and P<sub>s</sub> = 15.40 MPa.
+At 180.06 m/s, PH = 314.4 MPa (Us = 1838 m/s) and Ps = 15.40 MPa.
 The solver measures the force on a disc of radius D/8 (14.2 mm) at the impact centre.
 "Peak" is the maximum. "Plateau" is the mean from 0.25 to 0.75 of the squash-up time L/v = 1260 µs.
 
-| Bird spacing | Particles | Peak (MPa) | Peak vs P<sub>H</sub> | Plateau (MPa) | Plateau vs P<sub>s</sub> | Impulse / m v | Energy balance |
+| Bird spacing | Particles | Peak (MPa) | Peak vs PH | Plateau (MPa) | Plateau vs Ps | Impulse / m v | Energy balance |
 |---|---|---|---|---|---|---|---|
 | 9 mm | 2560 | 180.5 | −42.6 % | 19.37 | +25.8 % | 1.0079 | 0.9997 |
 | 6 mm | 8760 | 317.4 | +0.9 % | 19.67 | +27.7 % | 0.9955 | 1.0006 |
@@ -110,7 +111,7 @@ The solver measures the force on a disc of radius D/8 (14.2 mm) at the impact ce
 | 3.5 mm | 44412 | 350.1 | +11.3 % | 15.90 | +3.2 % | 0.9921 | 1.0000 |
 
 The impulse is m v within 1 %, and the energy balance closes within 0.1 %.
-The plateau converges to P<sub>s</sub> as the spacing decreases, to +3.2 % at 3.5 mm.
+The plateau converges to Ps as the spacing decreases, to +3.2 % at 3.5 mm.
 The peak converges less well. At 9 mm, the smoothing length (10.9 mm) smears the shock, and the peak is 43 % low.
 At 6 mm and 4.5 mm the peak is within 3 %, and at 3.5 mm it is 11 % high.
 The peak is the maximum of one time step on a 14 mm disc, so it is noisy. Use it as an order-of-magnitude check, and the plateau as the convergence check.
@@ -165,7 +166,7 @@ The machine had a load average of 25 from other work, thus the CPU times are hig
 
 On an idle machine, the CPU times were 5.7 ms, 13.1 ms and 31.3 ms per step for the first three meshes. The native build is about 1.6 times faster than the wasm.
 
-The table below gives the time of the full panel run on the page, in Chrome 156 on the same machine, with a high load from other work.
+The table below gives the time of the full panel run on the page. The run used Chrome 156 on the same machine, with a high load from other work.
 The two GPU columns are two different runs. On the CPU, the page also does the steps one phase at a time for the code view.
 
 | Page preset | CPU | GPU, run 1 | GPU, run 2 |
@@ -177,35 +178,35 @@ The two GPU columns are two different runs. On the CPU, the page also does the s
 
 On the GPU, the 2D canvas renderer limits the page at fine meshes. At 3.5 mm, the page shows 7 to 15 frames per second, and the solver waits for the frames.
 
-Only Chrome 156 on macOS (Metal) was tested, in headless mode. Other browsers with WebGPU possibly work, but they were not tested. Without WebGPU, the page uses the CPU solver.
+We tested only Chrome 156 on macOS (Metal), in headless mode. Other browsers with WebGPU possibly work, but we did not test them. Without WebGPU, the page uses the CPU solver.
 
 The 9 mm mesh is the fast default on the CPU. The trade: its peak pressure is 43 % low, its plateau is 26 % high, and it shows no skin erosion. But its deflection is within 1.5 % of the 4.5 mm result, and its peak force is 15 % higher.
 
 ## The page
 
 - The code view shows `web/strike.goose`, the copy of `sim/strike.goose` that `build.sh` writes.
-  The page runs each time step in five phases, one call of the wasm export `step_phase` each: time step, SPH bird, shells (with plasticity and erosion), contact and integration.
+  The page runs each time step in five phases. Each phase is one call of the wasm export `step_phase`. The phases are time step, SPH bird, shells (with plasticity and erosion), contact and integration.
   `run_phase` in the source has the five phases. The lit lines are the phase that ran last, as `step_phase` returns it. The source scrolls to that phase, at most once a second.
   A test checks that the phases one at a time give the same result as whole steps.
-  On the GPU, the kernels of `web/strike.wgsl` do the five phases, and the code view says so. No line is lit.
+  On the GPU, the kernels of `web/strike.wgsl` do the five phases, and the code view says so. The code view lights no line.
 - The skin thickness control sets the skin of the next run, from 0.8 mm to 3.2 mm. The stringers and frames keep their 1.6 mm. The preset values on the page are for the 1.6 mm skin only.
 - The telemetry shows the solver (GPU or CPU), the solver time per step and the frame rate.
-- "Export GIF" saves the last run as an animated GIF, 480 px wide: about ten frames a second of the approach, then one frame each 25 µs of simulated time.
+- "Export GIF" saves the last run as an animated GIF, 480 px wide. It has about ten frames a second of the approach, then one frame each 25 µs of simulated time.
   Each frame has a caption with the time and the colour bar. The encoder is `web/gif.ts` (median cut palette, LZW), with no dependency.
-- The colour maps are continuous ramps, interpolated in OKLab: plastic strain on a square-root scale from the bare metal (0 %) to 18 %, so that the first yield shows, and bird pressure on a log scale from 0.1 MPa to 400 MPa.
-- Each shell element has a thin outline, and the panel edges, the free flanges and the lines where a stringer or a frame meets the skin have a heavier outline. Thus the shape of the panel shows over the strain colours.
+- The colour maps are continuous ramps, interpolated in OKLab. The plastic strain goes on a square-root scale from the bare metal (0 %) to 18 %, so that the first yield shows. The bird pressure goes on a log scale from 0.1 MPa to 400 MPa.
+- Each shell element has a thin outline. The panel edges, the free flanges and the lines where a stringer or a frame meets the skin have a heavier outline. Thus the shape of the panel shows over the strain colours.
 - The look (fonts, palette, interaction rules) is that of [teoyujie.org](https://teoyujie.org): the page links the site's shared stylesheet `/shared/kowalski.css`. `web/style.css` has only the rules of this tool.
 
 ## Goose on WebAssembly
 
 Goose has no wasm port yet (its `docs/design/wasm.md` is a proposal).
-The C that Goose writes compiles with Emscripten, with one risk: Goose reserves a large address range (2 GiB by default) for each data stack, with a guard gap behind it that stops a stack overflow.
+The C that Goose writes compiles with Emscripten, with one risk. Goose reserves a large address range (2 GiB by default) for each data stack. A guard gap behind it stops a stack overflow.
 WebAssembly linear memory has no reservation and no guard pages. Emscripten's `mmap` allocates the full size, and `mprotect` does nothing.
 
 The handling:
 
 1. The solver keeps all state in static global arrays. The generated C of the time loop (`step_once`, `step_phase` and the functions they call) has no data-stack use. You can check this: in the code of the program, `gen/strike.c` uses `->top` only in `gs_init_globals`.
-2. `gs_init_globals` builds each zeroed global array in a data-stack temporary and copies it. The largest temporary is `esig`, 24000 × 15 × 8 B = 2.88 MB, and each temporary is released before the next one.
+2. `gs_init_globals` builds each zeroed global array in a data-stack temporary and copies it. The largest temporary is `esig`, 24000 × 15 × 8 B = 2.88 MB, and the code releases each temporary before the next one.
 3. Thus `build.sh` sets `GS_STACK_RESERVE` to 4 MiB and the guard gap to 64 KiB. If a later change makes a larger global array, raise the reserve.
 
 The same is true for `gen/gpu.c`: it uses `->top` only in `gs_init_globals`, and its largest global array is also `esig`.
@@ -216,18 +217,18 @@ The GPU solver has three parts:
 
 | File | Language | What it does |
 |---|---|---|
-| `sim/gpu.goose` | Goose | The host. It calls `setup` of `strike.goose`, copies the bird and the panel to GPU buffers, makes a bind group for each kernel, records the time steps and reads back the results. It imports `strike.goose`, so the getters of the CPU solver give the GPU results. |
+| `sim/gpu.goose` | Goose | The host. It calls `setup` of `strike.goose`, copies the bird and the panel to GPU buffers and makes a bind group for each kernel. It also records the time steps and reads back the results. It imports `strike.goose`, so the getters of the CPU solver give the GPU results. |
 | `sim/gpu.c` | C | The WebGPU calls, through `webgpu.h`. Goose cannot make the `webgpu.h` descriptors (they hold pointers) or give a callback, so `sim/gpu.goose` calls these C functions as `extern fn`. This file has no solver logic. |
-| `web/strike.wgsl` | WGSL | 11 compute kernels. One time step is 10 kernels in sequence: the five phases of `run_phase` in `strike.goose`, and a reduction that sums the energies and the forces, advances the time and computes the next time step. |
+| `web/strike.wgsl` | WGSL | 11 compute kernels. One time step is 10 kernels in sequence. They are the five phases of `run_phase` in `strike.goose`, and a reduction. The reduction sums the energies and the forces, advances the time and computes the next time step. |
 
-<img src="docs/figures/step.svg" width="680" alt="One time step. The CPU solver runs the five phases of run_phase: 0 time step, 1 SPH bird, 2 shells, 3 contact, 4 integration. The GPU solver runs 10 kernels on the same phases: clear, bin_particles and sph; shell; bin_elements and contact; integrate_particles, integrate_nodes and elem_geom. Then reduce gives the next time step.">
+![One time step. The CPU solver runs the five phases of run_phase: 0 time step, 1 SPH bird, 2 shells, 3 contact, 4 integration. The GPU solver runs 10 kernels on the same phases: clear, bin_particles and sph; shell; bin_elements and contact; integrate_particles, integrate_nodes and elem_geom. Then reduce gives the next time step.](docs/figures/step.svg)
 
 The WebGPU implementation is Emscripten's own port, `--use-port=emdawnwebgpu` (from the Dawn releases). The page gives the GPU device to the wasm module, so no C code waits for a promise.
 
 The GPU solver is a port of the CPU solver, with these differences:
 
 - It uses f32, because WGSL has no f64. The CPU solver uses f64. The plasticity return stops at a tolerance of 1e-6, not 1e-12.
-- The SPH forces are a gather: each particle sums the forces from its neighbours, so each pair is computed two times. The CPU solver computes each pair one time.
+- The SPH forces are a gather: each particle sums the forces from its neighbours, so the solver computes each pair two times. The CPU solver computes each pair one time.
 - The shell and contact forces on the nodes are sums with atomic operations, so the sequence of the additions changes from run to run. Thus the GPU results are not bit-for-bit repeatable.
 - The page keeps two batches of steps on the GPU. Thus the GPU does the next batch while the page reads the results of the last one.
 
@@ -246,14 +247,14 @@ The test also runs the rigid wall on the GPU: the impulse is m v within 2 %, and
 
 The GPU and the CPU agree less well on the plateau of the rigid wall check. The centre sensor force changes by about 20 % from step to step, so small differences change its mean.
 
-| Bird spacing | Peak vs P<sub>H</sub>, CPU / GPU | Plateau vs P<sub>s</sub>, CPU / GPU | Impulse / m v, CPU / GPU |
+| Bird spacing | Peak vs PH, CPU / GPU | Plateau vs Ps, CPU / GPU | Impulse / m v, CPU / GPU |
 |---|---|---|---|
 | 9 mm | −42.6 % / −42.6 % | +25.8 % / +25.8 % | 1.0079 / 1.0079 |
 | 6 mm | +0.9 % / +0.9 % | +27.7 % / +25.8 % to +26.5 % | 0.9955 / 0.9957 |
 | 4.5 mm | +2.7 % / +2.7 % | +13.1 % / −0.7 % | 0.9935 / 0.9936 |
 | 3.5 mm | +11.3 % / +11.3 % | +3.2 % / −0.2 % to 0.0 % | 0.9921 / 0.9920 |
 
-The peak and the impulse agree. The plateau agrees at 9 mm and 6 mm, but at 4.5 mm and 3.5 mm the GPU plateau is lower. The cause is not known. Thus the page shows the plateau of the native CPU solver for each preset.
+The peak and the impulse agree. The plateau agrees at 9 mm and 6 mm, but at 4.5 mm and 3.5 mm the GPU plateau is lower. We do not know the cause. Thus the page shows the plateau of the native CPU solver for each preset.
 
 ## Build
 
@@ -298,7 +299,7 @@ The `bundle` step needs the Bun version in `packageManager` in `package.json` (1
 
 - `typecheck`: `tsc --noEmit` with `strict`, `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`,
 - `comments`: no comment in the TypeScript files, except a link to an outside source (the excluded files are in `scripts/config.ts`),
-- `nondeterminism`: no call that gives a different result on each run (`Math.random`, `Date.now` and others) in the files of the solver wrapper and the GIF encoder. The lists are in `scripts/config.ts`,
+- `nondeterminism`: no call that gives a different result on each run (`Math.random`, `Date.now` and others) in the solver wrapper and GIF encoder files. The lists are in `scripts/config.ts`,
 - `dead-code`: knip fails on an unused file, export or dependency,
 - `bundle`: `web/app.js` is the bundle of `web/app.ts`. The step fails when Bun is not the version in `packageManager` in `package.json`, because a different Bun can write a different bundle,
 - `budget`: the gzipped first load of `index.html` is under 120 KB (86.9 KB with the CPU solver, 115.4 KB with the GPU solver),
@@ -309,7 +310,7 @@ The `bundle` step needs the Bun version in `packageManager` in `package.json` (1
 
 The tests (`test/strike.test.ts`) load the committed `web/strike.wasm` in Bun and check:
 
-- that the C in `gen/` and the two wasm files come from the current sources (the sums in `gen/sha256sums`), and that `web/strike.goose` is the same as `sim/strike.goose`,
+- that the C in `gen/` and the two wasm files come from the current sources (the sums in `gen/sha256sums`), and that `web/strike.goose` equals `sim/strike.goose`,
 - the load case constants and the Wilbeck reference pressures,
 - the rigid wall impulse (m v within 2 %) and energy balance (within 1 %),
 - the panel energy balance (within 1 %), the panel mass, and that a new set-up gives the same result,
