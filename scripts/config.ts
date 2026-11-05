@@ -37,3 +37,18 @@ export const JPL_LONG_FUNCTIONS: Record<string, number> = {
   "sim/strike.goose:contact": 86,
   "web/app.ts:decorations": 74,
 };
+
+export const GENERATED_C_OFF = [
+  "-Wno-unused-const-variable",
+  "-Wno-unused-function",
+  "-Wno-unused-parameter",
+  "-Wno-unused-variable",
+  "-Wno-unterminated-string-initialization",
+] as const;
+
+export const ANALYZER_KNOWN: string[] = [
+  "[core.NullDereference] Access to field 'n' results in a dereference of a null pointer (loaded from variable 'lf')",
+  "[core.UndefinedBinaryOperatorResult] The left operand of '!=' is a garbage value due to array index out of bounds",
+  "[unix.Stream] File position of the stream might be 'indeterminate' after a failed operation. Can cause undefined behavior",
+  "[unix.Stream] Read function called when stream is in EOF state. Function has no effect",
+];

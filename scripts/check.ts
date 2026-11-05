@@ -6,6 +6,7 @@ import { buildBundle } from "./bundle.ts";
 import { checkJpl } from "./jpl.ts";
 import { checkBudget } from "./budget.ts";
 import { cacheDir, replay } from "./replay.ts";
+import { checkAnalyzer, checkGeneratedWarnings } from "./cstatic.ts";
 
 const root = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const accept = process.argv.includes("--accept");
@@ -55,6 +56,8 @@ const steps: [string, () => string[] | Promise<string[]>][] = [
     return problems;
   }],
   ["sanitizer", sanitizerRun],
+  ["c-warnings", () => checkGeneratedWarnings(root)],
+  ["analyzer", () => checkAnalyzer(root)],
   ["tests", testsWithCapture],
   ["replay", () => replay(root, accept)],
 ];
