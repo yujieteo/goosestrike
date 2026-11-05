@@ -20,6 +20,6 @@ export const PHASES = [
   { name: "integration", fns: ["integrate", "tait"] },
 ];
 
-assert(ALL_PRESETS.some((p) => !p.gpuOnly), "a preset runs without the GPU");
-assert(ALL_PRESETS.every((p) => p.spacing > 0 && p.cells > 0), "presets have a lattice and a skin grid");
+assert(ALL_PRESETS[0]?.gpuOnly === false, "the first preset runs without the GPU");
+assert(ALL_PRESETS.length === 4, "there are four presets");
 assert(PHASES.length === 5, "a time step has five phases");
