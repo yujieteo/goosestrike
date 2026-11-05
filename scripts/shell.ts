@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { SHELL_EXCLUDED } from "./config.ts";
 
 const SHELLCHECK = ["uvx", "--from", "shellcheck-py==0.11.0.1", "shellcheck", "-o", "all"];
 const SHELL_FIRST_LINE = /^#!\s*(?:\/\S*\/)?(?:env\s+(?:-\S+\s+)*)?(?:sh|bash|ksh)(?:\s|$)/;
@@ -15,7 +16,7 @@ function isShell(root: string, file: string): boolean {
 }
 
 export function checkShell(root: string): string[] {
-  const files = committedFiles(root).filter((f) => isShell(root, f));
+  const files = committedFiles(root).filter((f) => !(f in SHELL_EXCLUDED) && isShell(root, f));
   if (files.length === 0) return [];
   const r = Bun.spawnSync([...SHELLCHECK, ...files], { cwd: root, stdout: "pipe", stderr: "pipe" });
   return r.exitCode === 0 ? [] : [`shellcheck exited ${r.exitCode}`, r.stdout.toString(), r.stderr.toString()].filter(Boolean);

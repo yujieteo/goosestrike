@@ -4,6 +4,10 @@ export const COMMENT_EXCLUDED: Record<string, string> = {
   "web/app.js": "written by bun build from web/app.ts",
 };
 
+export const SHELL_EXCLUDED: Record<string, string> = {
+  "scripts/power10-check": "the checker launcher, copied unchanged from its pinned commit; its style findings are the checker's to fix",
+};
+
 export const SOURCE_GLOBS = ["web/**/*.ts", "web/**/*.mts", "test/**/*.ts", "scripts/**/*.ts"];
 
 export const BUNDLE = {
