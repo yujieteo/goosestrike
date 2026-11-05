@@ -1,0 +1,29 @@
+#!/bin/sh
+# Project launcher for power10-check. It only selects the pin in power10.lock, fetches that exact commit
+# of the checker and hands over to the shared runner (scripts/p10-run in that commit). Copy this file
+# unchanged to scripts/power10-check in a project; the checker itself is never copied.
+set -eu
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"       # the project root: this file is in scripts/
+LOCK="$ROOT/power10.lock"
+pin() { sed -n "s/^$1 *= *\"\{0,1\}\([^\"]*\)\"\{0,1\} *\$/\1/p" "$LOCK" | head -1; }
+COMMIT="$(pin commit)"; VERSION="$(pin version)"; SOURCE="$(pin source)"
+[ -n "$COMMIT" ] && [ -n "$VERSION" ] && [ -n "$SOURCE" ] || { echo "power10-check: $LOCK needs commit, version and source" >&2; exit 2; }
+CACHE="${P10_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/power10-check}"
+DIR="$CACHE/checkouts/$COMMIT"
+if [ ! -f "$DIR/.p10-verified" ]; then
+  mkdir -p "$CACHE/checkouts"; TMP="$DIR.part.$$"; rm -rf "$TMP"; mkdir -p "$TMP"
+  # A token for a private repository is read from the environment, never from argv.
+  if [ -n "${P10_GIT_TOKEN:-}" ]; then
+    AUTH="$(printf 'x-access-token:%s' "$P10_GIT_TOKEN" | base64 | tr -d '\n')"
+    export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="http.https://github.com/.extraheader" GIT_CONFIG_VALUE_0="Authorization: Basic $AUTH"
+  fi
+  git -C "$TMP" init -q
+  git -C "$TMP" fetch -q --depth 1 "$SOURCE" "$COMMIT" 2>/dev/null \
+    || git -C "$TMP" fetch -q "$SOURCE" '+refs/heads/*:refs/p10/heads/*' '+refs/tags/*:refs/p10/tags/*' \
+    || { echo "power10-check: cannot fetch $COMMIT from $SOURCE" >&2; rm -rf "$TMP"; exit 2; }
+  git -C "$TMP" checkout -q --detach "$COMMIT" 2>/dev/null \
+    || { echo "power10-check: $SOURCE has no commit $COMMIT" >&2; rm -rf "$TMP"; exit 2; }
+  [ "$(git -C "$TMP" rev-parse HEAD)" = "$COMMIT" ] || { echo "power10-check: fetched commit is not $COMMIT" >&2; rm -rf "$TMP"; exit 2; }
+  touch "$TMP/.p10-verified"; rm -rf "$DIR"; mv "$TMP" "$DIR"
+fi
+exec "$DIR/scripts/p10-run" --commit "$COMMIT" --version "$VERSION" -- --root "$ROOT" "$@"

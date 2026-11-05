@@ -4,6 +4,10 @@ export const COMMENT_EXCLUDED: Record<string, string> = {
   "web/app.js": "written by bun build from web/app.ts",
 };
 
+export const SHELL_EXCLUDED: Record<string, string> = {
+  "scripts/power10-check": "the checker launcher, copied unchanged from its pinned commit; its style findings are the checker's to fix",
+};
+
 export const SOURCE_GLOBS = ["web/**/*.ts", "web/**/*.mts", "test/**/*.ts", "scripts/**/*.ts"];
 
 export const BUNDLE = {
@@ -26,12 +30,6 @@ export const REPLAY = {
   cacheDir: "goosestrike-replay",
   baseRef: "origin/main",
   largeChangeFraction: 0.2,
-} as const;
-
-export const POWER10 = {
-  source: "git+https://github.com/yujieteo/power10-check",
-  commit: "502925100c8d3b586662d0d87caa6531dbe8676c",
-  version: "0.1.0",
 } as const;
 
 export const GENERATED_C_OFF = [

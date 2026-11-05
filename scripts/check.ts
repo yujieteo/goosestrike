@@ -51,7 +51,7 @@ const steps: [string, () => string[] | Promise<string[]>][] = [
   ["nondeterminism", () => checkNondeterminism(root, NONDETERMINISTIC_BANNED_IN, NONDETERMINISTIC_CALLS)],
   ["goose", () => checkGoose(root)],
   ["lint", () => checkLint(root)],
-  ["power10", () => checkPower10(root)],
+  ["power10", () => checkPower10()],
   ["dead-code", () => run(["bunx", "knip"])],
   ["bundle", bundleIsFresh],
   ["budget", () => {
