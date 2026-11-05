@@ -14,7 +14,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 goose="${GOOSE:-goose}"
 out=gen
-mkdir -p "$out"
+mkdir -p "${out}"
 
 # Every exported function of a header, for Emscripten.
 exports_of() { sed -n 's/^[a-z0-9_ *]*[ *]\([a-z_0-9]*\)(.*);$/_\1/p' "$1" | paste -sd, -; }
@@ -25,6 +25,7 @@ exports_of() { sed -n 's/^[a-z0-9_ *]*[ *]\([a-z_0-9]*\)(.*);$/_\1/p' "$1" | pas
 # Only goose_init pushes to the data stack: one zeroed temporary per global
 # array, popped at once. The largest is esig, f64[MAXE * 15] = 2.88 MB, so
 # the region is 4 MiB. The time loop never touches the data stack (README).
+# shellcheck disable=SC2054 # the commas are inside Emscripten -s option values, not array separators
 flags=(-O3 -DGS_STACK_RESERVE='(4ull<<20)' -DGS_STACK_GAP=65536
     -sMODULARIZE -sEXPORT_ES6 -sENVIRONMENT=web,node
     -sINITIAL_MEMORY=64MB -sALLOW_MEMORY_GROWTH -sEXPORTED_RUNTIME_METHODS=HEAPU8)
@@ -32,15 +33,17 @@ flags=(-O3 -DGS_STACK_RESERVE='(4ull<<20)' -DGS_STACK_GAP=65536
 # Goose -> one C file with the whole runtime and no main(); goose_init()
 # and the export fn wrappers are declared in the header. The relative source
 # path keeps the path of this checkout out of the C.
-"$goose" --standalone --header "$out/strike.h" -o "$out/strike.c" sim/strike.goose
-emcc "$out/strike.c" -o web/strike.mjs "${flags[@]}" \
-    -sEXPORTED_FUNCTIONS="_malloc,_free,$(exports_of "$out/strike.h")"
+"${goose}" --standalone --header "${out}/strike.h" -o "${out}/strike.c" sim/strike.goose
+strike_exports="$(exports_of "${out}/strike.h")"
+emcc "${out}/strike.c" -o web/strike.mjs "${flags[@]}" \
+    -sEXPORTED_FUNCTIONS="_malloc,_free,${strike_exports}"
 
 # The GPU solver. emdawnwebgpu is C++, so the link is a C++ link.
-"$goose" --standalone --header "$out/gpu.h" -o "$out/gpu.c" sim/gpu.goose
-emcc "$out/gpu.c" sim/gpu.c -o web/strike-gpu.mjs "${flags[@]}" \
+"${goose}" --standalone --header "${out}/gpu.h" -o "${out}/gpu.c" sim/gpu.goose
+gpu_exports="$(exports_of "${out}/gpu.h")"
+emcc "${out}/gpu.c" sim/gpu.c -o web/strike-gpu.mjs "${flags[@]}" \
     --use-port=emdawnwebgpu -sDEFAULT_TO_CXX \
-    -sEXPORTED_FUNCTIONS="_malloc,_free,$(exports_of "$out/gpu.h")"
+    -sEXPORTED_FUNCTIONS="_malloc,_free,${gpu_exports}"
 
 cp sim/strike.goose web/strike.goose
 # The tests check these sums, so a stale or hand-edited C or wasm fails CI.
