@@ -5,6 +5,7 @@
 // lgwrightlab/schematic-figure tools: node tools/render.mjs --root <dir> --fig step.js. The SVG in docs/figures/
 // also embeds a subset of Inter, so that GitHub, which shows it in an <img>, uses Inter.
 import * as E from './emil.js';
+import { assert } from './assert.js';
 export const figure = { width: 120, height: 70, name: 'step', format: 'journal' };
 
 const PHASES = [
@@ -16,14 +17,25 @@ const PHASES = [
   [null, ['reduce']],
 ];
 
+assert(PHASES.length === 6, 'there are five phases and the reduce row');
+assert(PHASES.every(([name, kernels]) => kernels.length > 0 || name !== null), 'every row has a phase or kernels');
+
 export default function draw(F, L) {
+  assert(F !== undefined && L !== undefined, 'the figure and its layer are given');
+  assert(figure.name === 'step', 'this is the step figure');
   const { r, line, text } = E.useEmil(F, L, 'web');
   const g = E.gray, LOOP = E.hue.blue[11];
   const mm = L.mm, root = F.root;
   const cpuX = mm(8), cpuW = mm(34), gpuX = mm(47);
   const top = mm(13), rowH = mm(9), cardH = mm(7);
-  const rowY = (i) => top + i * rowH;
+  const rowY = (i) => {
+    assert(Number.isInteger(i) && i >= 0 && i < PHASES.length, 'a row index is inside the table');
+    assert(rowH > 0, 'rows have a height');
+    return top + i * rowH;
+  };
   const head = (x, s, sub) => {
+    assert(typeof s === 'string' && typeof sub === 'string', 'a column head has a title and a subtitle');
+    assert(Number.isFinite(x), 'a column head has a position');
     L.text(root, x, mm(5.5), s, { size: text.label, weight: E.weight.title, valign: 'middle' });
     L.text(root, x, mm(9.5), sub, { size: text.small, color: g[1100], valign: 'middle' });
   };
@@ -32,6 +44,8 @@ export default function draw(F, L) {
 
   const chips = {};
   PHASES.forEach(([name, kernels], i) => {
+    assert(Array.isArray(kernels), 'a row lists its kernels');
+    assert(name === null || typeof name === 'string', 'a phase name is text or absent');
     const y = rowY(i);
     if (name) {
       L.rect(root, cpuX, y, cpuW, cardH, E.card(r.chip));
@@ -42,6 +56,8 @@ export default function draw(F, L) {
     for (const k of kernels) {
       const t = L.text(root, x + mm(2), y + cardH / 2, k.replace(/_/g, '\\_'), { size: text.small, valign: 'middle' });
       const w = t.getBBox().width + mm(4);
+      assert(w > mm(4), 'a kernel name has a width');
+      assert(!(k in chips), 'a kernel appears once');
       const chip = L.rect(root, x, y, w, cardH, E.card(r.chip));
       t.parentNode.insertBefore(chip, t);
       chips[k] = { x, y, w };
@@ -53,6 +69,8 @@ export default function draw(F, L) {
   const arrow = { stroke: LOOP, width: line.normal, head: 3, radius: 6 };
   const lx = cpuX - mm(3);
   L.arrow(root, [cpuX, rowY(4) + cardH / 2], [cpuX, rowY(0) + cardH / 2], { ...arrow, via: [[lx, rowY(4) + cardH / 2], [lx, rowY(0) + cardH / 2]] });
+  assert(chips.reduce !== undefined, 'the reduce kernel was drawn');
+  assert(Object.keys(chips).length > 0, 'kernels were drawn');
   const red = chips.reduce, rx = Math.max(...Object.values(chips).map((c) => c.x + c.w)) + mm(3);
   const t0 = L.text(root, gpuX, rowY(0) + cardH / 2, 'next time step', { size: text.small, color: LOOP, valign: 'middle' });
   const tw = t0.getBBox().width;
