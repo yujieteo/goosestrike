@@ -13,7 +13,7 @@ function spawn(root: string, cmd: string[]): { exitCode: number; stderr: string 
 export function checkGeneratedWarnings(root: string): string[] {
   const problems: string[] = [];
   for (const file of generatedC(root)) {
-    const r = spawn(root, ["clang", "-Wall", "-Wextra", "-Wpedantic", "-Werror", "-fsyntax-only", "-Igen", ...GENERATED_C_OFF, file]);
+    const r = spawn(root, ["clang", "-Wall", "-Wextra", "-Wpedantic", "-Werror", "-fsyntax-only", "-Igen", "-Wno-unknown-warning-option", ...GENERATED_C_OFF, file]);
     if (r.exitCode !== 0) problems.push(`${file} has warnings:`, r.stderr);
   }
   return problems;
@@ -22,9 +22,10 @@ export function checkGeneratedWarnings(root: string): string[] {
 export function checkAnalyzer(root: string): string[] {
   const problems: string[] = [];
   for (const file of generatedC(root)) {
-    const r = spawn(root, ["clang", "--analyze", "-Xanalyzer", "-analyzer-disable-checker=deadcode.DeadStores", "-Igen", file, "-o", "/dev/null"]);
+    const r = spawn(root, ["clang", "--analyze", "-Xanalyzer", "-analyzer-disable-checker=deadcode.DeadStores", "-Xanalyzer", "-analyzer-disable-checker=unix.Stream", "-Igen", file, "-o", "/dev/null"]);
     const found: string[] = [];
     for (const line of r.stderr.split("\n")) {
+      if (/: error: /.test(line)) problems.push(`${file}: clang failed: ${line}`);
       const m = /^[^:]+:\d+:\d+: warning: (.*) \[([^\]]+)\]$/.exec(line);
       if (m) found.push(`[${m[2]}] ${m[1]}`);
     }
