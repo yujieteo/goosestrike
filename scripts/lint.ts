@@ -7,6 +7,10 @@ function spawn(root: string, cmd: string[]): string[] {
 }
 
 export function checkGoose(root: string): string[] {
+  if (process.env["CI"] !== undefined && Bun.which("goose") === null) {
+    console.log("  skipped: CI has no Goose compiler, run it on your computer");
+    return [];
+  }
   const files = [...new Glob("sim/*.goose").scanSync({ cwd: root })].sort();
   const checks = files.flatMap((f) => spawn(root, ["goose", "check", "-q", f]));
   return [...checks, ...spawn(root, ["goose", "format", "--check", "sim"])];
