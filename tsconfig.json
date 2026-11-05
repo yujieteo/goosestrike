@@ -18,6 +18,10 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "forceConsistentCasingInFileNames": true,
+    "noUncheckedSideEffectImports": true,
     "noEmit": true,
     "skipLibCheck": true
   },

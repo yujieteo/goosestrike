@@ -28,15 +28,12 @@ export const REPLAY = {
   largeChangeFraction: 0.2,
 } as const;
 
-export const JPL_GOOSE_GLOBS = ["sim/**/*.goose"];
-export const JPL_MAX_LINES = 60;
-export const JPL_LONG_FUNCTIONS: Record<string, number> = {
-  "sim/gpu.goose:gpu_setup": 122,
-  "sim/strike.goose:build_panel": 70,
-  "sim/strike.goose:shell_element": 130,
-  "sim/strike.goose:contact": 86,
-  "web/app.ts:decorations": 74,
-};
+export const POWER10 = {
+  commit: "502925100c8d3b586662d0d87caa6531dbe8676c",
+  version: "0.1.0",
+  sourceEnv: "POWER10_CHECK_SOURCE",
+  defaultSource: ".local/share/power10-check",
+} as const;
 
 export const GENERATED_C_OFF = [
   "-Wno-unused-const-variable",
