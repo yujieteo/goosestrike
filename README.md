@@ -231,7 +231,7 @@ The GPU solver is a port of the CPU solver, with these differences:
 
 - It uses f32, because WGSL has no f64. The CPU solver uses f64. The plasticity return stops at a tolerance of 1e-6, not 1e-12.
 - The SPH forces are a gather: each particle sums the forces from its neighbours, so the solver computes each pair two times. The CPU solver computes each pair one time.
-- The shell and contact forces on the nodes are sums with atomic operations, so the sequence of the additions changes from run to run. Thus the GPU results are not bit-for-bit repeatable.
+- The contact forces on the nodes are sums with atomic operations. These sums are in integers, so the sequence of the additions, which changes from run to run, does not change the result. The neighbour lists also come in a different sequence on each run, so the SPH and contact kernels take each list in index sequence. Thus the GPU results are bit-for-bit repeatable on one GPU. `test/gpu.test.ts` checks this.
 - The page keeps two batches of steps on the GPU. Thus the GPU does the next batch while the page reads the results of the last one.
 
 `test/gpu.test.ts` runs the 9 mm panel to 3 ms on the GPU and on the CPU, and compares them. The tolerances are about 10 times the differences on Metal:
@@ -240,7 +240,7 @@ The GPU solver is a port of the CPU solver, with these differences:
 |---|---|---|
 | Max deflection, at each step | 0.1 mm | 0.013 mm |
 | Peak contact force | 1 % | less than 0.001 % |
-| Max deflection, max plastic strain, panel work | 0.1 mm, 1 %, 1 % | 0.0001 mm, 0.03 %, 0.003 % |
+| Max deflection, max plastic strain, panel work | 0.1 mm, 1 %, 1 % | 0.003 mm, 0.003 %, 0.002 % |
 | Eroded shells (all, and skin) | 2 elements | 0 |
 | Steps to 3 ms | 1 % | 0 |
 
@@ -304,7 +304,7 @@ The `bundle` step needs the Bun version in `packageManager` in `package.json` (1
 - `nondeterminism`: no call that gives a different result on each run (`Math.random`, `Date.now` and others) in the solver wrapper and GIF encoder files. The lists are in `scripts/config.ts`,
 - `dead-code`: knip fails on an unused file, export or dependency,
 - `bundle`: `web/app.js` is the bundle of `web/app.ts`. The step fails when Bun is not the version in `packageManager` in `package.json`, because a different Bun can write a different bundle,
-- `budget`: the gzipped first load of `index.html` is under 120 KB (86.9 KB with the CPU solver, 115.4 KB with the GPU solver),
+- `budget`: the gzipped first load of `index.html` is under 120 KB (86.9 KB with the CPU solver, 116.2 KB with the GPU solver),
 - `sanitizer`: `test/sanitize/main.c` runs the CPU solver in `gen/strike.c` with `-fsanitize=undefined,address -fno-sanitize-recover=all`,
 - `tests`: `bun test`, with `GOOSESTRIKE_CAPTURE` set so that the tests write their inputs to a cache outside the repository,
 - `replay`: process replay. It runs the captured inputs (solver runs and GIF encodes) on `origin/main` and on this tree, and fails on any difference in the output.

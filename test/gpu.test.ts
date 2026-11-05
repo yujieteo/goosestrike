@@ -79,6 +79,22 @@ gpuTest("the GPU solver matches the CPU solver on the panel", async () => {
   expect(dx, `node positions differ by ${dx * 1e3} mm`).toBeLessThan(5e-3);
 });
 
+gpuTest("the GPU solver gives the same panel result on each run", async () => {
+  const g = needGpu();
+  const tEnd = 3.0e-4;
+  const result = async (): Promise<Float32Array[]> => {
+    g.setup(PANEL, 56, 0.009, V_C);
+    await runGpu(g, tEnd);
+    return [g.history().slice(), g.strain().slice(), g.nodes().slice(), g.particles().slice()];
+  };
+  const first = await result();
+  expect(g.tContact(), "the bird hits the panel in the run").toBeGreaterThan(0);
+  for (let run = 1; run < 3; run++) {
+    const again = await result();
+    for (let k = 0; k < first.length; k++) expect(at(again, k), `array ${k} of run ${run}`).toEqual(at(first, k));
+  }
+});
+
 gpuTest("GPU rigid wall: the impulse is m v and the energy balance closes", async () => {
   const g = needGpu();
   const ke0 = 0.5 * BIRD_MASS * V_C * V_C;

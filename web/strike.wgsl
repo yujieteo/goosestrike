@@ -9,10 +9,16 @@
 // particle, node or element. Where strike.goose adds a force of an element
 // to its nodes, shell writes the force per element corner and
 // integrate_nodes gathers them. The contact forces on the nodes are added
-// with atomics. The sums and the maxima (the energies, the deflection, the
-// next time step) are made per workgroup and then by reduce, in one
-// workgroup, which also advances the time. All kernels stop when the time
+// with atomics, as integers (add_nfc). The sums and the maxima (the
+// energies, the deflection, the next time step) are made per workgroup and
+// then by reduce, in one workgroup, which also advances the time. All kernels stop when the time
 // reaches t_end, so the host can send more steps than it needs.
+//
+// A run gives the same result each time. An f32 sum depends on the order
+// of its terms, and the order of the atomics changes from run to run, so no
+// f32 sum takes its terms in the order of an atomic: sph and contact visit
+// the neighbour lists in index order (part_batch, elem_batch), and the
+// contact forces on the nodes are integer sums.
 //
 // Binding n is buffer n of sim/gpu.goose. Some buffers have two or three
 // views (plain, atomic, read-only). One kernel uses one view of each.
@@ -61,7 +67,7 @@ struct EBin { c: vec3f, r: f32, cell: vec3i, next: i32 }
 @group(0) @binding(8) var<storage, read> nx_r: array<vec4f>;
 @group(0) @binding(9) var<storage, read_write> nvw: array<vec4f>;    // per node: velocity, angular velocity
 @group(0) @binding(9) var<storage, read> nvw_r: array<vec4f>;
-@group(0) @binding(10) var<storage, read_write> nfc: array<u32>;     // contact force, f32 bits, 3 per node
+@group(0) @binding(10) var<storage, read_write> nfc: array<u32>;     // contact force, i32 in units of nfc_unit, 3 per node
 @group(0) @binding(10) var<storage, read_write> nfc_a: array<atomic<u32>>;
 @group(0) @binding(10) var<storage, read> nfc_r: array<u32>;
 @group(0) @binding(11) var<storage, read> adj: array<u32>;           // per node: first corner, then the corners 4 e + k
@@ -121,6 +127,45 @@ fn bin_particles(@builtin(global_invocation_id) id: vec3u) {
     pbin[i] = vec4i(c, next);
 }
 
+// The lists of a bucket come in a different order on each run. sph and
+// contact take the members of a cell in batches of up to BATCH, from the
+// highest index down (the order of the lists of strike.goose). A batch is
+// one walk of the list: it keeps the BATCH highest indices below `below`.
+const BATCH = 32;
+
+// Puts j into the batch out[0..n), high to low, and returns the new count.
+fn keep_high(out: ptr<function, array<i32, BATCH>>, n: i32, j: i32) -> i32 {
+    if n == BATCH && j <= (*out)[BATCH - 1] { return n; }
+    var k = min(n, BATCH - 1);
+    while k > 0 && (*out)[k - 1] < j { (*out)[k] = (*out)[k - 1]; k--; }
+    (*out)[k] = j;
+    return min(n + 1, BATCH);
+}
+
+// The next batch of the particles in cell c, below index `below`.
+fn part_batch(c: vec3i, below: i32, out: ptr<function, array<i32, BATCH>>) -> i32 {
+    var n = 0;
+    var j = phead_r[hash3(c)];
+    while j >= 0 {
+        let b = pbin_r[j];
+        if j < below && all(b.xyz == c) { n = keep_high(out, n, j); }
+        j = b.w;
+    }
+    return n;
+}
+
+// The next batch of the elements in cell c, below index `below`.
+fn elem_batch(c: vec3i, below: i32, out: ptr<function, array<i32, BATCH>>) -> i32 {
+    var n = 0;
+    var e = ehead_r[hash3(c)];
+    while e >= 0 {
+        let b = ebin_r[e];
+        if e < below && all(b.cell == c) { n = keep_high(out, n, e); }
+        e = b.next;
+    }
+    return n;
+}
+
 // ---------------------------------------------------------------------------
 // SPH: continuity, Tait pressure, momentum with Monaghan viscosity
 // (sph_forces). Each particle sums over its own neighbours.
@@ -158,35 +203,40 @@ fn sph(@builtin(global_invocation_id) id: vec3u) {
         for (var dj = -1; dj <= 1; dj++) {
             for (var di = -1; di <= 1; di++) {
                 let c = c0 + vec3i(di, dj, dk);
-                var j = phead_r[hash3(c)];
-                while j >= 0 {
-                    let b = pbin_r[j];
-                    if u32(j) != i && all(b.xyz == c) {
-                        let xj = part_r[2 * j];
-                        let d = xi.xyz - xj.xyz;
-                        let r2 = dot(d, d);
-                        if r2 < h2 && r2 > 0.0 {
-                            let r = sqrt(r2);
-                            let q = r / h;
-                            let dw = select(-0.75 * sigma / h * (2.0 - q) * (2.0 - q),
-                                            sigma / h * (-3.0 * q + 2.25 * q * q), q < 1.0);
-                            let g = dw * d / r;
-                            let vj = part_r[2 * j + 1];
-                            let v = vi.xyz - vj.xyz;
-                            drho += pm * dot(v, g);
-                            let rj = xj.w;
-                            var visc = 0.0;
-                            let vr = dot(v, d);
-                            if vr < 0.0 {
-                                let mu = h * vr / (r2 + 0.01 * h * h);
-                                let cbar = 0.5 * (ci + sound(rj));
-                                let rbar = 0.5 * (ri + rj);
-                                visc = (-U.k.x * cbar * mu + U.k.y * mu * mu) / rbar;
+                var below = 2147483647;
+                loop {
+                    var batch: array<i32, BATCH>;
+                    let nb = part_batch(c, below, &batch);
+                    for (var bi = 0; bi < nb; bi++) {
+                        let j = batch[bi];
+                        if u32(j) != i {
+                            let xj = part_r[2 * j];
+                            let d = xi.xyz - xj.xyz;
+                            let r2 = dot(d, d);
+                            if r2 < h2 && r2 > 0.0 {
+                                let r = sqrt(r2);
+                                let q = r / h;
+                                let dw = select(-0.75 * sigma / h * (2.0 - q) * (2.0 - q),
+                                                sigma / h * (-3.0 * q + 2.25 * q * q), q < 1.0);
+                                let g = dw * d / r;
+                                let vj = part_r[2 * j + 1];
+                                let v = vi.xyz - vj.xyz;
+                                drho += pm * dot(v, g);
+                                let rj = xj.w;
+                                var visc = 0.0;
+                                let vr = dot(v, d);
+                                if vr < 0.0 {
+                                    let mu = h * vr / (r2 + 0.01 * h * h);
+                                    let cbar = 0.5 * (ci + sound(rj));
+                                    let rbar = 0.5 * (ri + rj);
+                                    visc = (-U.k.x * cbar * mu + U.k.y * mu * mu) / rbar;
+                                }
+                                a -= pm * (pri + vj.w / (rj * rj) + visc) * g;
                             }
-                            a -= pm * (pri + vj.w / (rj * rj) + visc) * g;
                         }
                     }
-                    j = b.w;
+                    if nb < BATCH { break; }
+                    below = batch[BATCH - 1];
                 }
             }
         }
@@ -392,14 +442,21 @@ fn closest_tri(p: vec3f, a: vec3f, b: vec3f, c: vec3f) -> vec3f {
     return vec3f(1.0 - v - w, v, w);
 }
 
-fn add_nfc(i: u32, v: f32) {
-    var old = atomicLoad(&nfc_a[i]);
-    loop {
-        let r = atomicCompareExchangeWeak(&nfc_a[i], old, bitcast<u32>(bitcast<f32>(old) + v));
-        if r.exchanged { break; }
-        old = r.old_value;
-    }
+// The unit of the contact forces on the nodes: 2^-24 of the largest force
+// one particle can put on one node (mr <= particle mass, penetration <= the
+// largest gap, weight <= 1). So the conversion of one force keeps the f32
+// precision of that bound, and an i32 holds the sum of 128 such forces;
+// the panel at 3 ms reaches 0.45 of one. Integer adds give the same sum in
+// any order.
+fn nfc_unit() -> f32 {
+    return U.k.z * U.sph.x / (S.dt * S.dt) * (U.sph.z + 0.5 * U.k2.w) / 16777216.0;
 }
+
+fn add_nfc(i: u32, v: f32) {
+    atomicAdd(&nfc_a[i], bitcast<u32>(i32(round(v / nfc_unit()))));
+}
+
+fn nfc_at(i: u32) -> f32 { return f32(bitcast<i32>(nfc_r[i])) * nfc_unit(); }
 
 // Penalty contact: the force on each particle, and on the nodes it pushes.
 @compute @workgroup_size(64)
@@ -424,10 +481,13 @@ fn contact(@builtin(global_invocation_id) id: vec3u) {
             for (var dj = -1; dj <= 1; dj++) {
                 for (var di = -1; di <= 1; di++) {
                     let c = c0 + vec3i(di, dj, dk);
-                    var e = ehead_r[hash3(c)];
-                    while e >= 0 {
-                        let b = ebin_r[e];
-                        if all(b.cell == c) {
+                    var below = 2147483647;
+                    loop {
+                        var batch: array<i32, BATCH>;
+                        let nb = elem_batch(c, below, &batch);
+                        for (var bi = 0; bi < nb; bi++) {
+                            let e = batch[bi];
+                            let b = ebin_r[e];
                             let gap = prad + 0.5 * einfo[2 * e + 1].x;
                             let dc = p - b.c;
                             let lim = b.r + gap;
@@ -451,7 +511,8 @@ fn contact(@builtin(global_invocation_id) id: vec3u) {
                                 }
                             }
                         }
-                        e = b.next;
+                        if nb < BATCH { break; }
+                        below = batch[BATCH - 1];
                     }
                 }
             }
@@ -542,7 +603,7 @@ fn integrate_nodes(@builtin(global_invocation_id) id: vec3u, @builtin(local_invo
                 f += efor_r[2u * corner].xyz;
                 mo += efor_r[2u * corner + 1u].xyz;
             }
-            let fc = vec3f(bitcast<f32>(nfc_r[3u * n]), bitcast<f32>(nfc_r[3u * n + 1u]), bitcast<f32>(nfc_r[3u * n + 2u]));
+            let fc = vec3f(nfc_at(3u * n), nfc_at(3u * n + 1u), nfc_at(3u * n + 2u));
             let a = (f + fc) / x.w;
             let al = mo / i0.w;
             let vm = v + 0.5 * a * S.dtm;
