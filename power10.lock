@@ -1,0 +1,3 @@
+commit = "89746d1c8ef421ce56b67209923d25c483ee9c3c"
+version = "0.2.0"
+source = "https://github.com/yujieteo/power10-check.git"

@@ -28,12 +28,6 @@ export const REPLAY = {
   largeChangeFraction: 0.2,
 } as const;
 
-export const POWER10 = {
-  source: "git+https://github.com/yujieteo/power10-check",
-  commit: "502925100c8d3b586662d0d87caa6531dbe8676c",
-  version: "0.1.0",
-} as const;
-
 export const GENERATED_C_OFF = [
   "-Wno-unused-const-variable",
   "-Wno-unused-function",

@@ -12,7 +12,8 @@ jobs:
           bun-version-file: package.json
       - uses: astral-sh/setup-uv@v6
       # lavapipe, a Vulkan driver on the CPU, gives Dawn a WebGPU adapter
-      - run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1 clang
+      # cmake and a C++ compiler build the pinned Goose compiler once for scripts/power10-check
+      - run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1 clang cmake g++
       - run: bun install --frozen-lockfile
       - run: bun run check
         env:
