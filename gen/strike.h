@@ -46,13 +46,13 @@ typedef struct { float e[60000]; } a60000_f32;
 
 typedef struct { float e[24000]; } a24000_f32;
 
-typedef struct { double e[3]; } a3_f64;
-
-typedef struct { uint8_t *data; int64_t len; } sl_u8;
+typedef struct { double e[4]; } a4_f64;
 
 typedef struct { int64_t e[4]; } a4_i64;
 
-typedef struct { double e[4]; } a4_f64;
+typedef struct { double e[3]; } a3_f64;
+
+typedef struct { uint8_t *data; int64_t len; } sl_u8;
 
 typedef struct ByteSet_g ByteSet_g;
 typedef struct { uint8_t e[256]; } a256_b;

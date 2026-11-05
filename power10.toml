@@ -1,0 +1,2 @@
+version = "0.1.0"
+exclude = ["gen/*", "web/app.js", "web/strike.goose", "web/strike*.mjs", "web/strike*.d.mts"]

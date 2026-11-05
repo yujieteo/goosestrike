@@ -35,7 +35,7 @@ async function runGpu(g: GpuEngine, tEnd: number): Promise<void> {
   }
 }
 
-gpuTest("the GPU solver matches the CPU solver on the panel", async () => {
+async function matchesCpu(): Promise<void> {
   const g = needGpu();
   const tEnd = 3.0e-3;
   const cpu = await loadEngine();
@@ -73,13 +73,15 @@ gpuTest("the GPU solver matches the CPU solver on the panel", async () => {
     if (at(gs, e) >= 0 && at(cs, e) >= 0) ds = Math.max(ds, Math.abs(at(gs, e) - at(cs, e)));
     else for (let k = 0; k < 4; k++) if (at(el, 4 * e + k) >= 0) eroded[at(el, 4 * e + k)] = 1;
   }
-  for (let i = 0; i < cn.length; i++) if (!at(eroded, (i / 3) | 0)) dx = Math.max(dx, Math.abs(at(gn, i) - at(cn, i)));
+  for (let i = 0; i < cn.length; i++) if (!at(eroded, Math.trunc(i / 3))) dx = Math.max(dx, Math.abs(at(gn, i) - at(cn, i)));
   expect(Math.max(...gs), "the GPU strain is drawn").toBeGreaterThan(0.5 * cpu.maxPlasticStrain());
   expect(ds, `element strain differs by ${ds}`).toBeLessThan(0.01);
   expect(dx, `node positions differ by ${dx * 1e3} mm`).toBeLessThan(5e-3);
-});
+}
 
-gpuTest("the GPU solver gives the same panel result on each run", async () => {
+gpuTest("the GPU solver matches the CPU solver on the panel", matchesCpu);
+
+async function repeats(): Promise<void> {
   const g = needGpu();
   const tEnd = 3.0e-4;
   const result = async (): Promise<Float32Array[]> => {
@@ -93,9 +95,11 @@ gpuTest("the GPU solver gives the same panel result on each run", async () => {
     const again = await result();
     for (let k = 0; k < first.length; k++) expect(at(again, k), `array ${k} of run ${run}`).toEqual(at(first, k));
   }
-});
+}
 
-gpuTest("GPU rigid wall: the impulse is m v and the energy balance closes", async () => {
+gpuTest("the GPU solver gives the same panel result on each run", repeats);
+
+async function rigidWall(): Promise<void> {
   const g = needGpu();
   const ke0 = 0.5 * BIRD_MASS * V_C * V_C;
   g.setup(RIGID_WALL, 8, 0.009, V_C);
@@ -106,4 +110,6 @@ gpuTest("GPU rigid wall: the impulse is m v and the energy balance closes", asyn
   expect(Math.abs(imp - 1), `impulse / (m v) = ${imp}`).toBeLessThan(0.02);
   const bal = (g.birdKE() + g.birdWork()) / ke0;
   expect(Math.abs(bal - 1), `energy balance = ${bal}`).toBeLessThan(0.01);
-});
+}
+
+gpuTest("GPU rigid wall: the impulse is m v and the energy balance closes", rigidWall);

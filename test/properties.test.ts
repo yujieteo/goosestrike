@@ -37,7 +37,7 @@ test("a GIF of any small image has the header, the trailer and one frame per add
     if (seed === 0) capture({ kind: "gif", width, height, frames: captured });
     const gif = rec.encode();
     expect(String.fromCharCode(...gif.subarray(0, 6))).toBe(GIF_HEADER);
-    expect(gif[gif.length - 1]).toBe(GIF_TRAILER);
+    expect(gif.at(-1)).toBe(GIF_TRAILER);
     expect(rec.frames.length).toBe(frames);
   }), { seed: PROPERTY_SEED });
 });

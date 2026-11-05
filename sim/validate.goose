@@ -17,6 +17,8 @@ import std;
 // particle velocity behind the shock is v, and the jump conditions
 // rho0 Us = rho1 (Us - v), p1 = rho0 Us v give p1 = p(rho1).
 fn hugoniot(v: f64) -> f64, f64 {
+    assert(v > 0.0);
+    assert(v < C0_BIRD);
     let b = RHO_BIRD * C0_BIRD * C0_BIRD / GAMMA_TAIT;
     var lo = RHO_BIRD * 1.000001;
     var hi = RHO_BIRD * 2.0;
@@ -27,10 +29,14 @@ fn hugoniot(v: f64) -> f64, f64 {
     }
     let rho1 = 0.5 * (lo + hi);
     let us = v * rho1 / (rho1 - RHO_BIRD);
+    assert(rho1 > RHO_BIRD);
+    assert(us > v);
     return RHO_BIRD * us * v, us;
 }
 
 fn run(spacing: f64, csv: bool) {
+    assert(spacing > 0.0);
+    assert(spacing < 1.0);
     let v = V_C;
     let n = setup(1, 8, spacing, v);
     let area = PI * get_sensor_r() * get_sensor_r();
@@ -57,6 +63,7 @@ fn run(spacing: f64, csv: bool) {
             last_print = t;
         }
     }
+    assert(plat_n > 0);
     let pm = plat / plat_n;
     let mom = BIRD_MASS * v;
     print("spacing_mm=", spacing * 1000.0, " particles=", n, " h_mm=", get_smoothing() * 1000.0,
@@ -72,10 +79,14 @@ fn run(spacing: f64, csv: bool) {
 
 // The panel case: energy balance and damage. Prints the history with --csv.
 fn panel_run(spacing: f64, csv: bool) {
+    assert(spacing > 0.0);
+    assert(spacing < 1.0);
     // shell elements about 2.1 bird spacings long, a multiple of 8 along x
     let cells = ((PANEL_LX / (2.1 * spacing) / 8.0 + 0.5) as i32) * 8;
     let n = setup(0, cells, spacing, V_C);
     let ke0 = get_bird_ke();
+    assert(ke0 > 0.0);
+    assert(cells >= 8);
     let t_end = 3.0e-3;
     var next = 0.0;
     var fpeak = 0.0;
@@ -92,6 +103,7 @@ fn panel_run(spacing: f64, csv: bool) {
             next += 2.0e-5;
         }
     }
+    assert(get_ne() > 0);
     print("panel spacing_mm=", spacing * 1000.0, " skin_cells=", cells, " nodes=", get_nn(),
           " shells=", get_ne(), " particles=", n, " steps=", get_steps(), " panel_kg=", get_panel_mass());
     print("  peak_force_kN=", fpeak / 1000.0, " max_deflection_mm=", get_max_defl() * 1000.0,
@@ -106,6 +118,7 @@ fn main() {
     var panel = false;
     var spacings: f64[>..] = [];
     let av = args();
+    assert(av.len >= 1);
     for i in 1..av.len {
         if av[i] == "--csv" { csv = true; continue; }
         if av[i] == "--panel" { panel = true; continue; }
@@ -119,5 +132,6 @@ fn main() {
         return;
     }
     if spacings.len == 0 { spacings.push(0.009); spacings.push(0.006); spacings.push(0.0045); }
+    assert(spacings.len > 0);
     for s in spacings { run(s, csv); }
 }

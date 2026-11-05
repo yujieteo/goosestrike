@@ -66,13 +66,17 @@ typedef struct { uint8_t *data; int64_t len; } sl_u8;
 
 typedef struct { int64_t *data; int64_t len; } sl_i64;
 
+typedef struct { double e[4]; } a4_f64;
+
+typedef struct { int64_t e[4]; } a4_i64;
+
 typedef struct { double e[3]; } a3_f64;
 
 typedef struct { float *data; int64_t len; } sl_f32;
 
 typedef struct { int32_t *data; int64_t len; } sl_i32;
 
-typedef struct { int64_t e[4]; } a4_i64;
+typedef struct { int32_t e[32]; } a32_i32;
 
 typedef struct { int64_t e[5]; } a5_i64;
 
@@ -83,10 +87,6 @@ typedef struct { int64_t e[8]; } a8_i64;
 typedef struct { int64_t e[9]; } a9_i64;
 
 typedef struct { int64_t e[7]; } a7_i64;
-
-typedef struct { int32_t e[32]; } a32_i32;
-
-typedef struct { double e[4]; } a4_f64;
 
 typedef struct ByteSet_g ByteSet_g;
 typedef struct { uint8_t e[256]; } a256_b;

@@ -1,0 +1,138 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "pedantic": "error",
+    "perf": "error",
+    "style": "error",
+    "restriction": "error"
+  },
+  "ignorePatterns": ["web/app.js", "web/strike*.mjs", "web/strike*.d.mts", "gen/**", "node_modules/**"],
+  "rules": {
+    // Each await waits for the step before it; running them together would change the order.
+    "eslint/no-await-in-loop": "off",
+    // `void promise` marks a promise that is left running on purpose.
+    "eslint/no-void": "off",
+    // A timer callback that returns the resolve call is the shortest correct form.
+    "eslint/no-promise-executor-return": "off",
+    // The no-op callbacks in tests stand in for browser callbacks.
+    "eslint/no-empty-function": "off",
+    // Handlers close over loop constants only; tsc checks the types.
+    "eslint/no-loop-func": "off",
+    // Numeric code (physics constants, byte offsets, pixel sizes) reads worse with every literal named; the named constants that carry meaning are already named.
+    "eslint/no-magic-numbers": "off",
+    // Short names (i, j, k, x, e) follow the notation of the equations and loops; length does not change behaviour.
+    "eslint/id-length": "off",
+    // Declaration layout only.
+    "eslint/one-var": "off",
+    // Ordering of object keys only.
+    "eslint/sort-keys": "off",
+    // Ordering of declarations only.
+    "eslint/sort-vars": "off",
+    // Ordering of imports only.
+    "eslint/sort-imports": "off",
+    // Function declaration versus arrow function: layout only.
+    "eslint/func-style": "off",
+    // Ternaries are bounded expressions with no control-flow risk; the nested form stays banned.
+    "eslint/no-ternary": "off",
+    // One-statement bodies on one line are the repository's layout; tsc and the formatter catch a misplaced statement.
+    "eslint/curly": "off",
+    // Comment case only.
+    "eslint/capitalized-comments": "off",
+    // Naming only.
+    "eslint/no-underscore-dangle": "off",
+    // Naming only.
+    "eslint/new-cap": "off",
+    // Layout only.
+    "eslint/prefer-destructuring": "off",
+    // Declaration layout only; tsc rejects use before assignment.
+    "eslint/init-declarations": "off",
+    // A counted loop with ++ is the bounded-loop form rule 2 asks for.
+    "eslint/no-plusplus": "off",
+    // Control-flow layout; rule 2 bounds the loops.
+    "eslint/no-continue": "off",
+    // Naming only; exactOptionalPropertyTypes in tsc governs undefined.
+    "eslint/no-undefined": "off",
+    // The DOM and JSON APIs return null; tsc checks it.
+    "unicorn/no-null": "off",
+    // Comment placement only; the comments step owns comment rules.
+    "eslint/no-inline-comments": "off",
+    // Function declarations are hoisted; the order is layout.
+    "eslint/no-use-before-define": "off",
+    // Interface declaration style only.
+    "typescript/method-signature-style": "off",
+    // Visibility keywords only; the project has few classes.
+    "typescript/explicit-member-accessibility": "off",
+    // Rule 4 (60 lines) bounds function size.
+    "eslint/max-statements": "off",
+    // Rule 4 bounds function size; numeric kernels pass their operands.
+    "eslint/max-params": "off",
+    // Rule 4 is checked by power10-check.
+    "eslint/max-lines-per-function": "off",
+    // Rule 4 bounds functions; file size is not a rule.
+    "eslint/max-lines": "off",
+    // Rule 4 bounds functions.
+    "eslint/max-depth": "off",
+    // Layout only.
+    "eslint/max-classes-per-file": "off",
+    // The GIF encoder and hashing need bitwise operators.
+    "eslint/no-bitwise": "off",
+    // The page uses the browser's promise APIs.
+    "oxc/no-async-await": "off",
+    // Syntax preference only.
+    "oxc/no-rest-spread-properties": "off",
+    // Syntax preference only; tsc checks the null cases.
+    "oxc/no-optional-chaining": "off",
+    // Number format only.
+    "unicorn/no-zero-fractions": "off",
+    // Number format only.
+    "unicorn/number-literal-case": "off",
+    // Number format only.
+    "unicorn/numeric-separators-style": "off",
+    // Regex flags only; the patterns are ASCII.
+    "eslint/require-unicode-regexp": "off",
+    // String building style only.
+    "eslint/prefer-template": "off",
+    // Style only.
+    "unicorn/prefer-string-replace-all": "off",
+    // Style only.
+    "unicorn/prefer-spread": "off",
+    // Style only.
+    "unicorn/explicit-length-check": "off",
+    // Style only.
+    "unicorn/prefer-add-event-listener": "off",
+    // Style only.
+    "unicorn/prefer-query-selector": "off",
+    // Style only.
+    "unicorn/prefer-global-this": "off",
+    // Style only; the text is ASCII.
+    "unicorn/prefer-code-point": "off",
+    // Naming only.
+    "unicorn/catch-error-name": "off",
+    // Layout only.
+    "unicorn/consistent-function-scoping": "off",
+    // Style only; both forms are bounded.
+    "unicorn/no-array-for-each": "off",
+    // The arrays are copied first where order matters; tsc checks types.
+    "unicorn/no-array-sort": "off",
+    // Style only.
+    "unicorn/no-array-reverse": "off",
+    // The check scripts exit with a status.
+    "unicorn/no-process-exit": "off",
+    // The scripts and tests print their results.
+    "eslint/no-console": "off",
+    // Regex style only.
+    "eslint/prefer-named-capture-group": "off",
+    // Style only.
+    "unicorn/consistent-existence-index-check": "off",
+    // Style only.
+    "unicorn/max-nested-calls": "off",
+    // Style only.
+    "eslint/prefer-exponentiation-operator": "off",
+    // Layout.
+    "eslint/no-shadow": "off",
+    // tsc infers the types; an annotation adds no check.
+    "typescript/explicit-function-return-type": "off"
+  }
+}
