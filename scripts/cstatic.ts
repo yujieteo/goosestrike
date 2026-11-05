@@ -1,5 +1,5 @@
 import { readdirSync } from "node:fs";
-import { ANALYZER_KNOWN, GENERATED_C_OFF } from "./config.ts";
+import { ANALYZER_KNOWN, ANALYZER_VERSION_DEPENDENT, GENERATED_C_OFF } from "./config.ts";
 
 function generatedC(root: string): string[] {
   return readdirSync(`${root}/gen`).filter((f) => f.endsWith(".c")).sort().map((f) => `gen/${f}`);
@@ -22,7 +22,7 @@ export function checkGeneratedWarnings(root: string): string[] {
 export function checkAnalyzer(root: string): string[] {
   const problems: string[] = [];
   for (const file of generatedC(root)) {
-    const r = spawn(root, ["clang", "--analyze", "-Xanalyzer", "-analyzer-disable-checker=deadcode.DeadStores", "-Xanalyzer", "-analyzer-disable-checker=unix.Stream", "-Igen", file, "-o", "/dev/null"]);
+    const r = spawn(root, ["clang", "--analyze", "-Xanalyzer", "-analyzer-disable-checker=deadcode.DeadStores", "-Igen", file, "-o", "/dev/null"]);
     const found: string[] = [];
     for (const line of r.stderr.split("\n")) {
       if (/: error: /.test(line)) problems.push(`${file}: clang failed: ${line}`);
@@ -32,8 +32,8 @@ export function checkAnalyzer(root: string): string[] {
     const known = [...ANALYZER_KNOWN];
     for (const f of found) {
       const i = known.indexOf(f);
-      if (i < 0) problems.push(`${file}: new analyser finding: ${f}`);
-      else known.splice(i, 1);
+      if (i >= 0) known.splice(i, 1);
+      else if (!ANALYZER_VERSION_DEPENDENT.includes(f)) problems.push(`${file}: new analyser finding: ${f}`);
     }
     for (const k of known) problems.push(`${file}: analyser finding no longer reported, remove it from ANALYZER_KNOWN in scripts/config.ts: ${k}`);
   }
