@@ -1,5 +1,29 @@
 // web/engine.ts
 import createModule from "./strike.mjs";
+
+// web/checked.ts
+function assert(holds, what) {
+  if (what.length === 0)
+    throw new Error("an assertion must say what it checks");
+  if (!holds)
+    throw new Error(`${what} does not hold`);
+}
+function at(a, i) {
+  if (!(i >= 0 && i < a.length))
+    throw new RangeError(`index ${i} is outside 0..${a.length}`);
+  if (!Number.isInteger(i))
+    throw new RangeError(`index ${i} is not a whole number`);
+  return a[i];
+}
+function must(v, what) {
+  if (what.length === 0)
+    throw new Error("a missing value must be named");
+  if (v === null || v === undefined)
+    throw new Error(`${what} is missing`);
+  return v;
+}
+
+// web/engine.ts
 var V_C = 350 * 1852 / 3600;
 var BIRD_MASS = 4 * 0.45359237;
 var RHO_BIRD = 950;
@@ -11,65 +35,106 @@ var RIGID_WALL = 1;
 var BYTES_PER_I64 = 8;
 var SLICE_BYTES = 12;
 var WGSL_URL = "strike.wgsl";
+function scalar(m, name) {
+  assert(typeof m === "object" && m !== null, "the solver module is an object");
+  assert(typeof m[name] === "function", `${String(name)} is a solver export`);
+  return m[name];
+}
+function floats(bytes, fn, n) {
+  assert(Number.isInteger(n) && n >= 0, "a buffer holds a whole count of floats");
+  const out = new Float32Array(bytes(fn), 0, n);
+  assert(out.length === n, "the float view has the requested length");
+  assert(out.byteLength === 4 * n, "the float view covers its bytes");
+  return out;
+}
+function ints(bytes, fn, n) {
+  assert(Number.isInteger(n) && n >= 0, "a buffer holds a whole count of integers");
+  const out = new Int32Array(bytes(fn), 0, n);
+  assert(out.length === n, "the integer view has the requested length");
+  assert(out.byteLength === 4 * n, "the integer view covers its bytes");
+  return out;
+}
 function common(m) {
   const lenPtr = m._malloc(BYTES_PER_I64);
+  assert(lenPtr > 0, "the length slot was allocated");
+  assert(m.HEAPU8.length > lenPtr, "the length slot lies inside the heap");
   function bytes(fn) {
     const ptr = fn(lenPtr);
     const len = Number(new BigInt64Array(m.HEAPU8.buffer, lenPtr, 1)[0]);
+    assert(ptr >= 0 && len >= 0, "the buffer has a start and a length");
+    assert(ptr + len <= m.HEAPU8.length, "the buffer lies inside the heap");
     return m.HEAPU8.buffer.slice(ptr, ptr + len);
   }
+  const np = scalar(m, "_get_np"), nn = scalar(m, "_get_nn"), ne = scalar(m, "_get_ne");
+  assert(typeof m._malloc === "function" && typeof m._free === "function", "the module has an allocator");
+  assert(np !== nn && nn !== ne, "the counts are separate exports");
   return {
     bytes,
-    setSkin: (t) => m._set_skin(t),
-    time: () => m._get_time(),
-    dt: () => m._get_dt(),
-    steps: () => m._get_steps(),
-    tContact: () => m._get_t_contact(),
-    np: () => m._get_np(),
-    nn: () => m._get_nn(),
-    ne: () => m._get_ne(),
-    particleMass: () => m._get_particle_mass(),
-    spacing: () => m._get_spacing(),
-    smoothing: () => m._get_smoothing(),
-    birdD: () => m._get_bird_d(),
-    birdL: () => m._get_bird_l(),
-    birdV: () => m._get_bird_v(),
-    contactForce: () => m._get_contact_force(),
-    centerForce: () => m._get_center_force(),
-    sensorR: () => m._get_sensor_r(),
-    impulse: () => m._get_impulse(),
-    panelWork: () => m._get_panel_work(),
-    hourglassWork: () => m._get_hg_work(),
-    birdWork: () => m._get_bird_work(),
-    failed: () => m._get_failed(),
-    failedSkin: () => m._get_failed_skin(),
-    maxPlasticStrain: () => m._get_max_ep(),
-    maxDeflection: () => m._get_max_defl(),
-    failStrain: (mat) => m._get_eps_fail(mat),
-    birdKE: () => m._get_bird_ke(),
-    panelKE: () => m._get_panel_ke(),
-    panelMass: () => m._get_panel_mass(),
-    fillRender: () => void m._fill_render(),
-    nodes: () => new Float32Array(bytes(m._buf_nodes), 0, 3 * m._get_nn()),
-    particles: () => new Float32Array(bytes(m._buf_particles), 0, 3 * m._get_np()),
-    pressure: () => new Float32Array(bytes(m._buf_pressure), 0, m._get_np()),
-    strain: () => new Float32Array(bytes(m._buf_strain), 0, m._get_ne()),
-    elements: () => new Int32Array(bytes(m._buf_elements), 0, 4 * m._get_ne())
+    setSkin: (t) => {
+      assert(t > 0, "the skin has a thickness");
+      m._set_skin(t);
+    },
+    time: scalar(m, "_get_time"),
+    dt: scalar(m, "_get_dt"),
+    steps: scalar(m, "_get_steps"),
+    tContact: scalar(m, "_get_t_contact"),
+    np,
+    nn,
+    ne,
+    particleMass: scalar(m, "_get_particle_mass"),
+    spacing: scalar(m, "_get_spacing"),
+    smoothing: scalar(m, "_get_smoothing"),
+    birdD: scalar(m, "_get_bird_d"),
+    birdL: scalar(m, "_get_bird_l"),
+    birdV: scalar(m, "_get_bird_v"),
+    contactForce: scalar(m, "_get_contact_force"),
+    centerForce: scalar(m, "_get_center_force"),
+    sensorR: scalar(m, "_get_sensor_r"),
+    impulse: scalar(m, "_get_impulse"),
+    panelWork: scalar(m, "_get_panel_work"),
+    hourglassWork: scalar(m, "_get_hg_work"),
+    birdWork: scalar(m, "_get_bird_work"),
+    failed: scalar(m, "_get_failed"),
+    failedSkin: scalar(m, "_get_failed_skin"),
+    maxPlasticStrain: scalar(m, "_get_max_ep"),
+    maxDeflection: scalar(m, "_get_max_defl"),
+    failStrain: (mat) => {
+      assert(mat === 0 || mat === 1, "the material is skin or stiffener");
+      return m._get_eps_fail(mat);
+    },
+    birdKE: scalar(m, "_get_bird_ke"),
+    panelKE: scalar(m, "_get_panel_ke"),
+    panelMass: scalar(m, "_get_panel_mass"),
+    fillRender: () => {
+      m._fill_render();
+    },
+    nodes: () => floats(bytes, m._buf_nodes, 3 * nn()),
+    particles: () => floats(bytes, m._buf_particles, 3 * np()),
+    pressure: () => floats(bytes, m._buf_pressure, np()),
+    strain: () => floats(bytes, m._buf_strain, ne()),
+    elements: () => ints(bytes, m._buf_elements, 4 * ne())
   };
 }
 async function loadEngine() {
   const m = await createModule();
   m._goose_init(0, 0);
+  assert(m.HEAPU8.length > 0, "the module has a heap");
+  assert(typeof m._set_skin === "function", "the module exports set_skin");
+  assert(typeof m._advance === "function", "the module exports advance");
+  assert(typeof m._setup === "function", "the module exports setup");
+  assert(typeof m._step_phase === "function", "the module exports step_phase");
   return {
     ...common(m),
     gpu: false,
-    setup: (mode, cells, spacing, speed) => m._setup(mode, cells, spacing, speed),
-    advance: (steps, tEnd) => m._advance(steps, tEnd),
-    stepPhase: (tEnd) => m._step_phase(tEnd)
+    setup: m._setup,
+    advance: m._advance,
+    stepPhase: m._step_phase
   };
 }
 async function text(name) {
+  assert(name.length > 0, "a file name is given");
   const url = new URL(name, import.meta.url);
+  assert(url.pathname.endsWith(name), "the file is next to this module");
   if (url.protocol === "file:") {
     const { readFile } = await import("node:fs/promises");
     return readFile(url, "utf8");
@@ -77,7 +142,9 @@ async function text(name) {
   const r = await fetch(url);
   if (!r.ok)
     throw new Error(`${name}: ${r.status}`);
-  return r.text();
+  const body = await r.text();
+  assert(body.length > 0, `${name} is not empty`);
+  return body;
 }
 async function loadGpuEngine(gpu = globalThis.navigator?.gpu) {
   const adapter = await gpu?.requestAdapter();
@@ -85,10 +152,13 @@ async function loadGpuEngine(gpu = globalThis.navigator?.gpu) {
     return null;
   const device = await adapter.requestDevice();
   const wgsl = new TextEncoder().encode(await text(WGSL_URL));
+  assert(wgsl.length > 0, "the WGSL source is not empty");
   const { default: createGpuModule } = await import("./strike-gpu.mjs");
   const m = await createGpuModule({ preinitializedWebGPUDevice: device });
   m._goose_init(0, 0);
   const src = m._malloc(wgsl.length), sl = m._malloc(SLICE_BYTES);
+  assert(src > 0 && sl > 0, "the WGSL source and its slice were allocated");
+  assert(src + wgsl.length <= m.HEAPU8.length, "the WGSL source fits in the heap");
   m.HEAPU8.set(wgsl, src);
   const dv = new DataView(m.HEAPU8.buffer, sl, SLICE_BYTES);
   dv.setUint32(0, src, true);
@@ -97,31 +167,49 @@ async function loadGpuEngine(gpu = globalThis.navigator?.gpu) {
   device.addEventListener("uncapturederror", (e) => errors.push(e.error.message));
   device.pushErrorScope("validation");
   device.pushErrorScope("internal");
+  assert(wgsl.length < m.HEAPU8.length, "the WGSL source is smaller than the heap");
+  assert(sl + SLICE_BYTES <= m.HEAPU8.length, "the slice lies inside the heap");
   const ok = m._gpu_init(sl) && m._gpu_setup(0, 56, 0.009, V_C);
   m._free(sl);
   m._free(src);
   const internal = await device.popErrorScope(), validation = await device.popErrorScope();
   const failure = internal || validation;
+  assert(typeof ok === "number" || typeof ok === "boolean", "the set-up reports a result");
+  assert(failure === null || typeof failure.message === "string", "a GPU error has a message");
   if (!ok || failure)
     throw new Error(`the WebGPU solver did not start${failure ? `: ${failure.message}` : ""}`);
   const base = common(m);
+  assert(Array.isArray(errors), "the GPU errors are collected");
+  assert(typeof m._gpu_run === "function", "the module exports gpu_run");
   return {
     ...base,
     gpu: true,
     errors,
-    setup: (mode, cells, spacing, speed) => m._gpu_setup(mode, cells, spacing, speed),
-    run: (steps, tEnd) => m._gpu_run(steps, tEnd),
-    fillRender: () => {},
-    poll: () => m._gpu_poll(),
-    pending: () => m._gpu_pending(),
-    running: () => m._gpu_running() !== 0,
-    history: () => new Float32Array(base.bytes(m._gpu_buf_hist), 0, 4 * Math.min(m._get_steps(), m._gpu_hist_cap())),
-    birdKE: () => m._gpu_bird_ke(),
-    panelKE: () => m._gpu_panel_ke(),
+    setup: m._gpu_setup,
+    run: m._gpu_run,
+    fillRender: () => {
+      assert(Array.isArray(errors), "the GPU errors are collected");
+    },
+    poll: m._gpu_poll,
+    pending: m._gpu_pending,
+    running: () => {
+      const flag = m._gpu_running();
+      assert(Number.isInteger(flag), "the running flag is a whole number");
+      return flag !== 0;
+    },
+    history: () => {
+      const rows = Math.min(m._get_steps(), m._gpu_hist_cap());
+      assert(rows >= 0, "the history has a row count");
+      return floats(base.bytes, m._gpu_buf_hist, 4 * rows);
+    },
+    birdKE: m._gpu_bird_ke,
+    panelKE: m._gpu_panel_ke,
     gpuObject: gpu
   };
 }
 function hugoniot(v) {
+  assert(Number.isFinite(v) && v > 0, "the impact speed is positive");
+  assert(v < C0_BIRD, "the impact speed is below the sound speed");
   const b = RHO_BIRD * C0_BIRD * C0_BIRD / GAMMA_TAIT;
   let lo = RHO_BIRD * 1.000001;
   let hi = RHO_BIRD * 2;
@@ -133,24 +221,17 @@ function hugoniot(v) {
     else
       lo = mid;
   }
+  assert(lo >= RHO_BIRD && hi <= 2 * RHO_BIRD && lo <= hi, "the bracket stays around the shocked density");
   const rho1 = 0.5 * (lo + hi);
   const us = v * rho1 / (rho1 - RHO_BIRD);
+  assert(rho1 > RHO_BIRD && Number.isFinite(us), "the shocked density is above the rest density");
+  assert(us > v, "the shock runs faster than the bird");
   return [RHO_BIRD * us * v, us];
 }
 function stagnation(v) {
+  assert(Number.isFinite(v), "the impact speed is finite");
+  assert(RHO_BIRD > 0, "the bird has a density");
   return 0.5 * RHO_BIRD * v * v;
-}
-
-// web/checked.ts
-function at(a, i) {
-  if (!(i >= 0 && i < a.length))
-    throw new RangeError(`index ${i} is outside 0..${a.length}`);
-  return a[i];
-}
-function must(v, what) {
-  if (v === null || v === undefined)
-    throw new Error(`${what} is missing`);
-  return v;
 }
 
 // web/gif.ts
@@ -170,20 +251,28 @@ class GifRecorder {
   frames = [];
   hist = new Uint32Array(COLOURS_15_BIT);
   constructor(width, height) {
+    assert(Number.isInteger(width) && width > 0, "the GIF has a whole width");
+    assert(Number.isInteger(height) && height > 0, "the GIF has a whole height");
     this.w = width;
     this.h = height;
   }
   add(image, delay) {
     const d = image.data, n = this.w * this.h, px = new Uint16Array(n);
+    assert(d.length === 4 * n, "the image has four bytes per pixel");
+    assert(Number.isInteger(delay) && delay > 0, "the frame delay is a whole number of centiseconds");
     for (let i = 0;i < n; i++) {
       const c = at(d, 4 * i) >> 3 << 10 | at(d, 4 * i + 1) >> 3 << 5 | at(d, 4 * i + 2) >> 3;
       px[i] = c;
       this.hist[c] = at(this.hist, c) + 1;
     }
+    assert(this.hist.length === COLOURS_15_BIT, "the histogram is complete");
     this.frames.push({ px, delay });
+    assert(this.frames.length > 0, "the frame was kept");
   }
   encode() {
+    assert(this.frames.length > 0, "there is a frame to encode");
     const pal = medianCut(this.hist, PALETTE_SIZE);
+    assert(pal.length <= PALETTE_SIZE, "the palette fits in 256 colours");
     const map = new Int16Array(COLOURS_15_BIT).fill(-1);
     const out = new ByteWriter;
     out.str("GIF89a");
@@ -203,6 +292,7 @@ class GifRecorder {
     out.bytes([3, 1, 0, 0, 0]);
     const idx = new Uint8Array(this.w * this.h);
     for (const f of this.frames) {
+      assert(f.px.length === idx.length, "every frame has the size of the image");
       for (let i = 0;i < idx.length; i++) {
         const c = at(f.px, i);
         let k = at(map, c);
@@ -224,19 +314,25 @@ class GifRecorder {
       lzw(idx, out);
     }
     out.byte(59);
+    assert(out.result().length > 0, "the GIF has bytes");
+    assert(out.result()[out.result().length - 1] === 59, "the GIF ends with its trailer");
     return out.result();
   }
 }
 var channel = (c, k) => c >> 10 - 5 * k & 31;
 function medianCut(hist, n) {
+  assert(hist.length === COLOURS_15_BIT, "the histogram has one bin per 15-bit colour");
+  assert(n >= 1 && n <= PALETTE_SIZE, "the palette size is 1 to 256");
   const cols = [];
   for (let c = 0;c < COLOURS_15_BIT; c++)
     if (at(hist, c))
       cols.push(c);
+  assert(cols.length > 0, "the image has at least one colour");
   const boxes = [cols];
   while (boxes.length < n) {
     let bi = -1, best = 0, axis = 0;
     boxes.forEach((b, i) => {
+      assert(b.length > 0, "no box is empty");
       if (b.length < 2)
         return;
       for (let k = 0;k < 3; k++) {
@@ -270,10 +366,13 @@ function medianCut(hist, n) {
         break;
       }
     }
+    assert(cut > 0 && cut < b.length, "a cut leaves both halves non-empty");
     boxes.splice(bi, 1, b.slice(0, cut), b.slice(cut));
   }
+  assert(boxes.length <= n, "no more boxes than palette entries");
   return boxes.map((b) => {
     let r = 0, g = 0, bl = 0, w = 0;
+    assert(b.length > 0, "a box has colours to average");
     for (const c of b) {
       const k = at(hist, c);
       r += channel(c, 0) * k;
@@ -281,11 +380,14 @@ function medianCut(hist, n) {
       bl += channel(c, 2) * k;
       w += k;
     }
+    assert(w > 0, "a box has weight");
     const mean = (v) => Math.round(v / w * 255 / 31);
     return [mean(r), mean(g), mean(bl)];
   });
 }
 function nearest(pal, c) {
+  assert(pal.length > 0, "the palette has colours");
+  assert(c >= 0 && c < COLOURS_15_BIT, "the colour is a 15-bit value");
   const r = (c >> 10 & 31) * 255 / 31, g = (c >> 5 & 31) * 255 / 31, b = (c & 31) * 255 / 31;
   let best = 0, bd = Infinity;
   for (let i = 0;i < pal.length; i++) {
@@ -295,9 +397,12 @@ function nearest(pal, c) {
       best = i;
     }
   }
+  assert(best >= 0 && best < pal.length, "the nearest entry is in the palette");
   return best;
 }
 function lzw(idx, out) {
+  assert(idx.length > 0, "the frame has pixels");
+  assert(idx.length <= 1 << 24, "a frame has a bounded number of pixels");
   out.byte(8);
   let size = LZW_MIN_SIZE, next = LZW_FIRST_FREE, acc = 0, nbits = 0;
   const block = [];
@@ -317,7 +422,9 @@ function lzw(idx, out) {
   };
   const dict = new Map;
   emit(LZW_CLEAR);
+  assert(dict.size === 0 && next === LZW_FIRST_FREE, "the dictionary starts empty");
   let prefix = at(idx, 0);
+  assert(prefix < PALETTE_SIZE, "the first pixel indexes the palette");
   for (let i = 1;i < idx.length; i++) {
     const k = at(idx, i), key = prefix * 256 + k, code = dict.get(key);
     if (code !== undefined) {
@@ -339,6 +446,8 @@ function lzw(idx, out) {
   }
   emit(prefix);
   emit(LZW_END);
+  assert(size <= LZW_MAX_SIZE, "the code size stays within 12 bits");
+  assert(next <= LZW_MAX_CODES, "the dictionary stays within 4096 codes");
   if (nbits > 0)
     block.push(acc & 255);
   if (block.length) {
@@ -346,6 +455,8 @@ function lzw(idx, out) {
     out.bytes(block);
   }
   out.byte(0);
+  assert(block.length <= SUB_BLOCK, "the last block fits in a sub-block");
+  assert(nbits >= 0 && nbits < 8, "fewer than eight bits are left over");
 }
 
 class ByteWriter {
@@ -360,23 +471,31 @@ class ByteWriter {
     this.buf[this.n++] = b;
   }
   bytes(a) {
+    assert(a !== null && typeof a === "object", "the bytes come as a list");
+    assert(this.n <= this.buf.length, "the writer is within its buffer");
     for (const b of a)
       this.byte(b);
   }
   u16(v) {
+    assert(Number.isInteger(v) && v >= 0, "a 16-bit value is a whole number");
+    assert(v < 65536, "a 16-bit value fits in two bytes");
     this.byte(v & 255);
     this.byte(v >> 8 & 255);
   }
   str(s) {
+    assert(s.length > 0, "a string has characters");
+    assert(/^[\x20-\x7e]*$/.test(s), "a string is printable ASCII");
     for (let i = 0;i < s.length; i++)
       this.byte(s.charCodeAt(i));
   }
   result() {
+    assert(this.n <= this.buf.length, "the writer is within its buffer");
+    assert(this.n >= 0, "the writer has a length");
     return this.buf.subarray(0, this.n);
   }
 }
 
-// web/app.ts
+// web/params.ts
 var KNOT_MS = 1852 / 3600;
 var T_END = 0.003;
 var BUDGET_MS = 12;
@@ -407,28 +526,114 @@ var DEFAULT_DIST = 1.3;
 var DIST_MIN = 0.4;
 var DIST_MAX = 5;
 var PITCH_LIMIT = 1.45;
+var DEPTH_BUCKETS = 4096;
+var SHADES = 64;
+var GRID = "rgba(43, 41, 37, 0.35)";
+var WHEEL_LINE_PX = 16;
+var GOOSE = {
+  belly: [252, 250, 244],
+  back: [234, 228, 216],
+  orange: "#e8913a",
+  ink: "#2b2925",
+  blush: "rgba(226, 120, 110, 0.5)",
+  star: "#e9b640"
+};
+assert(T_END > 0 && APPROACH_S > 0 && APPROACH_M > 0, "the run and approach lengths are positive");
+assert(PRESSURE_LOW_PA < PRESSURE_HIGH_PA && EP_MAX > 0, "the colour scales have a range");
+assert(GPU_BATCH_MIN <= GPU_BATCH_MAX && DIST_MIN < DIST_MAX, "the limits are ordered");
+
+// web/presets.ts
+var ALL_PRESETS = [
+  { name: "Potato goose", spacing: 0.009, cells: 56, peak: -42.6, plateau: 25.8, defl: 150.8, skin: 0, stiff: 36, run: "10 s", gpuRun: "1 to 2 s", gpuOnly: false },
+  { name: "Good goose", spacing: 0.006, cells: 88, peak: 0.9, plateau: 27.7, defl: 152.1, skin: 8, stiff: 62, run: "35 s", gpuRun: "4 to 6 s", gpuOnly: false },
+  { name: "Very good goose", spacing: 0.0045, cells: 112, peak: 2.7, plateau: 13.1, defl: 152.9, skin: 25, stiff: 152, run: "2 min", gpuRun: "10 to 12 s", gpuOnly: false },
+  { name: "Excellent goose", spacing: 0.0035, cells: 144, peak: 11.3, plateau: 3.2, defl: 228.1, skin: 249, stiff: 191, run: null, gpuRun: "20 to 60 s", gpuOnly: true }
+];
+var PHASES = [
+  { name: "time step", fns: ["stable_dt", "shell_dt"] },
+  { name: "SPH bird", fns: ["sph_forces", "bin_particles"] },
+  { name: "shells, plasticity, erosion", fns: ["shell_forces", "shell_element", "plane_stress_return"] },
+  { name: "contact", fns: ["contact", "bin_elements", "closest_tri"] },
+  { name: "integration", fns: ["integrate", "tait"] }
+];
+assert(ALL_PRESETS.some((p) => !p.gpuOnly), "a preset runs without the GPU");
+assert(ALL_PRESETS.every((p) => p.spacing > 0 && p.cells > 0), "presets have a lattice and a skin grid");
+assert(PHASES.length === 5, "a time step has five phases");
+
+// web/app.ts
 function el(id, kind) {
+  assert(id.length > 0, "an element id is given");
+  assert(typeof kind === "function", "an element type is given");
   const found = document.getElementById(id);
   if (!(found instanceof kind))
     throw new Error(`#${id} is missing or has the wrong type`);
+  assert(found.id === id, "the element is the one asked for");
+  assert(found.isConnected, "the element is in the page");
   return found;
 }
-var $ = (id) => el(id, HTMLElement);
-var button = (id) => el(id, HTMLButtonElement);
-var input = (id) => el(id, HTMLInputElement);
-var canvasOf = (id) => el(id, HTMLCanvasElement);
-var context2d = (cv) => must(cv.getContext("2d"), "the 2D context");
+function $(id) {
+  assert(id.length > 0, "an element id is given");
+  const found = el(id, HTMLElement);
+  assert(found.id === id, "the element has the requested id");
+  assert(found.isConnected, "the element is in the page");
+  return found;
+}
+function button(id) {
+  assert(id.length > 0, "a button id is given");
+  const found = el(id, HTMLButtonElement);
+  assert(found.tagName === "BUTTON", "the element is a button");
+  assert(found.id === id, "the button has the requested id");
+  return found;
+}
+function input(id) {
+  assert(id.length > 0, "an input id is given");
+  const found = el(id, HTMLInputElement);
+  assert(found.tagName === "INPUT", "the element is an input");
+  assert(found.id === id, "the input has the requested id");
+  return found;
+}
+function canvasOf(id) {
+  assert(id.length > 0, "a canvas id is given");
+  const found = el(id, HTMLCanvasElement);
+  assert(found.tagName === "CANVAS", "the element is a canvas");
+  assert(found.id === id, "the canvas has the requested id");
+  return found;
+}
+function context2d(cv) {
+  assert(cv.tagName === "CANVAS", "the 2D context comes from a canvas");
+  assert(cv.width >= 0 && cv.height >= 0, "the canvas has a size");
+  const found = must(cv.getContext("2d"), "the 2D context");
+  assert(found.canvas === cv, "the context belongs to the canvas");
+  return found;
+}
 var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-var fmt = (x, d = 1) => x.toLocaleString("en-GB", { minimumFractionDigits: d, maximumFractionDigits: d });
-var sign = (x, d = 1) => (x > 0 ? "+" : x < 0 ? "−" : "") + fmt(Math.abs(x), d);
+function fmt(x, d = 1) {
+  assert(Number.isInteger(d), "the digit count is a whole number");
+  assert(d >= 0 && d <= 20, "the digit count is 0 to 20");
+  const text = x.toLocaleString("en-GB", { minimumFractionDigits: d, maximumFractionDigits: d });
+  assert(text.length > 0, "the number has text");
+  return text;
+}
+function sign(x, d = 1) {
+  assert(Number.isInteger(d), "the digit count is a whole number");
+  assert(d >= 0 && d <= 20, "the digit count is 0 to 20");
+  const text = (x > 0 ? "+" : x < 0 ? "−" : "") + fmt(Math.abs(x), d);
+  assert(text.length > 0, "the signed number has text");
+  return text;
+}
 async function loadSolver() {
+  assert($("fire").isConnected && $("banner").isConnected, "the fire button and the banner exist");
+  assert(typeof location.search === "string", "the page has a query string");
   try {
     const cpu = new URLSearchParams(location.search).get("solver") === "cpu";
     const gpu = cpu ? null : await loadGpuEngine().catch((error) => {
       console.warn("WebGPU solver:", error);
       return null;
     });
-    return gpu ?? await loadEngine();
+    assert(!cpu || gpu === null, "the cpu choice skips the GPU");
+    const chosen = gpu ?? await loadEngine();
+    assert(chosen.gpu === (gpu !== null), "the engine kind matches the choice");
+    return chosen;
   } catch (error) {
     $("fire").textContent = "Goose unavailable";
     $("banner").setAttribute("role", "alert");
@@ -437,13 +642,11 @@ async function loadSolver() {
   }
 }
 var eng = await loadSolver();
-var PRESETS = [
-  { name: "Potato goose", spacing: 0.009, cells: 56, peak: -42.6, plateau: 25.8, defl: 150.8, skin: 0, stiff: 36, run: "10 s", gpuRun: "1 to 2 s", gpuOnly: false },
-  { name: "Good goose", spacing: 0.006, cells: 88, peak: 0.9, plateau: 27.7, defl: 152.1, skin: 8, stiff: 62, run: "35 s", gpuRun: "4 to 6 s", gpuOnly: false },
-  { name: "Very good goose", spacing: 0.0045, cells: 112, peak: 2.7, plateau: 13.1, defl: 152.9, skin: 25, stiff: 152, run: "2 min", gpuRun: "10 to 12 s", gpuOnly: false },
-  { name: "Excellent goose", spacing: 0.0035, cells: 144, peak: 11.3, plateau: 3.2, defl: 228.1, skin: 249, stiff: 191, run: null, gpuRun: "20 to 60 s", gpuOnly: true }
-].filter((p) => eng.gpu || !p.gpuOnly);
+var PRESETS = ALL_PRESETS.filter((p) => eng.gpu || !p.gpuOnly);
 function preset(i) {
+  assert(Number.isInteger(i), "a preset index is a whole number");
+  assert(PRESETS.length > 0, "there is a preset to pick");
+  assert(i >= 0 && i < PRESETS.length, "the preset index is in range");
   return at(PRESETS, i);
 }
 var st = {
@@ -481,6 +684,8 @@ try {
 }
 var audio = null;
 function ac() {
+  assert(audio === null || audio.sampleRate > 0, "an existing audio context has a sample rate");
+  assert(typeof st.muted === "boolean", "the mute flag is a boolean");
   try {
     audio ??= new (window.AudioContext ?? window.webkitAudioContext ?? AudioContext);
   } catch {
@@ -488,17 +693,24 @@ function ac() {
     showMute();
     return null;
   }
+  assert(audio !== null, "an audio context exists once it was made");
+  assert(audio.state !== "closed", "the audio context is open");
   return audio;
 }
 function honk(pitch = 1, when = 0) {
+  assert(pitch > 0, "the honk pitch is positive");
+  assert(when >= 0, "the honk starts now or later");
+  assert(Number.isFinite(pitch + when), "the honk timing is finite");
   if (st.muted)
     return;
   const a = ac();
   if (!a)
     return;
   const t = a.currentTime + when;
+  assert(Number.isFinite(t), "the honk start time is finite");
   const osc = a.createOscillator(), osc2 = a.createOscillator();
   const bp = a.createBiquadFilter(), g = a.createGain();
+  assert(a.sampleRate > 0, "the audio context has a sample rate");
   osc.type = "sawtooth";
   osc2.type = "square";
   osc.frequency.setValueAtTime(410 * pitch, t);
@@ -519,8 +731,11 @@ function honk(pitch = 1, when = 0) {
   osc2.start(t);
   osc.stop(t + 0.3);
   osc2.stop(t + 0.3);
+  assert(osc.type === "sawtooth" && osc2.type === "square", "the honk has two voices");
 }
 function splat() {
+  assert(st.splatted, "a splat follows the first contact");
+  assert(!st.muted || st.splatted, "a muted splat is silent but still counted");
   if (st.muted)
     return;
   const a = ac();
@@ -528,8 +743,10 @@ function splat() {
     return;
   const t = a.currentTime;
   const n = Math.floor(a.sampleRate * 0.5);
+  assert(n > 0, "the noise buffer has samples");
   const buf = a.createBuffer(1, n, a.sampleRate);
   const d = buf.getChannelData(0);
+  assert(d.length === n, "the noise buffer has the requested length");
   for (let i = 0;i < n; i++)
     d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2);
   const src = a.createBufferSource(), lp = a.createBiquadFilter(), g = a.createGain();
@@ -541,13 +758,20 @@ function splat() {
   src.connect(lp);
   lp.connect(g);
   g.connect(a.destination);
+  assert(Number.isFinite(t), "the splat start time is finite");
   src.start(t);
 }
 function readRender() {
   eng.fillRender();
-  return { nodes: eng.nodes(), parts: eng.particles(), press: eng.pressure(), strain: eng.strain() };
+  const out = { nodes: eng.nodes(), parts: eng.particles(), press: eng.pressure(), strain: eng.strain() };
+  assert(out.nodes.length % 3 === 0, "node positions come in triples");
+  assert(out.parts.length % 3 === 0, "particle positions come in triples");
+  assert(out.press.length * 3 === out.parts.length, "there is one pressure per particle");
+  return out;
 }
 function nearestParticle(px, x, y, z) {
+  assert(px.length > 0 && px.length % 3 === 0, "particle positions come in non-empty triples");
+  assert(!Number.isNaN(x + y + z), "the query point is a number");
   let best = 0, bd = Infinity;
   for (let i = 0;i < px.length / 3; i++) {
     const dx = at(px, 3 * i) - x, dy = at(px, 3 * i + 1) - y, dz = at(px, 3 * i + 2) - z;
@@ -557,26 +781,25 @@ function nearestParticle(px, x, y, z) {
       best = i;
     }
   }
+  assert(best >= 0 && 3 * best < px.length, "the nearest particle exists");
+  assert(bd < Infinity, "some particle was at a finite distance");
   return best;
 }
-var GOOSE = {
-  belly: [252, 250, 244],
-  back: [234, 228, 216],
-  orange: "#e8913a",
-  ink: "#2b2925",
-  blush: "rgba(226, 120, 110, 0.5)",
-  star: "#e9b640"
-};
 function paintGoose(p) {
+  assert(p.length > 0 && p.length % 3 === 0, "the goose has particles in triples");
   const n = p.length / 3;
   const D = eng.birdD(), L = eng.birdL(), r = 0.5 * D;
+  assert(r > 0 && L > 0, "the bird has a size");
+  assert(L >= D, "the bird is longer than it is wide");
   let zmin = Infinity, zmax = -Infinity;
   for (let i = 0;i < n; i++) {
     zmin = Math.min(zmin, at(p, 3 * i + 2));
     zmax = Math.max(zmax, at(p, 3 * i + 2));
   }
   const head = zmin + r;
+  assert(zmax >= zmin, "the bird has a length along z");
   const mid = zmin + 0.5 * L;
+  assert(mid >= zmin && head >= zmin, "the head and middle lie along the bird");
   const skin = [];
   for (let i = 0;i < n; i++) {
     const y = at(p, 3 * i + 1) / r;
@@ -597,39 +820,60 @@ function paintGoose(p) {
     feet: [near(0.4 * r, -0.92 * r, mid + 0.3 * r), near(-0.4 * r, -0.92 * r, mid + 0.3 * r)],
     tail: near(0, 0, zmax)
   };
+  assert(skin.length === n, "there is one colour per particle");
+  assert(anchors.eyes.length === 2 && anchors.cheeks.length === 2, "the goose has two eyes and two cheeks");
+  assert(anchors.wings.length === 2 && anchors.feet.length === 2, "the goose has two wings and two feet");
   return { skin, anchors };
 }
 function skinElements(cells) {
+  assert(Number.isInteger(cells) && cells > 0, "the skin has a whole number of cells");
   const gs = Math.floor(cells * SKIN_COLUMN_FRACTION / SKIN_ROW_MULTIPLE + 0.5) * SKIN_ROW_MULTIPLE;
-  return cells * gs;
+  assert(gs > 0 && gs % SKIN_ROW_MULTIPLE === 0, "the skin rows come in multiples of eight");
+  const total = cells * gs;
+  assert(Number.isInteger(total) && total > 0, "the skin has a whole number of elements");
+  return total;
 }
 function featureEdges(el) {
+  assert(el.length % 4 === 0, "elements have four corners");
   const ne = el.length / 4, count = new Map;
   const key = (a, b) => a < b ? a * 1e6 + b : b * 1e6 + a;
   const side = (i) => key(at(el, i), at(el, i - i % 4 + (i + 1) % 4));
   for (let i = 0;i < 4 * ne; i++)
     count.set(side(i), (count.get(side(i)) ?? 0) + 1);
   const edges = new Uint8Array(ne);
+  assert(count.size <= 4 * ne, "no side is counted more than once per element");
+  assert(Number.isInteger(ne), "the element count is whole");
   for (let i = 0;i < 4 * ne; i++)
     if (count.get(side(i)) !== 2)
       edges[i >> 2] = at(edges, i >> 2) | 1 << i % 4;
+  assert(edges.length * 4 === el.length, "there is one flag byte per element");
+  assert(edges.byteLength === ne, "an element has one byte of edge flags");
   return edges;
 }
 function sceneOf() {
   const render = readRender();
   const elems = eng.elements();
   const init = render.parts.slice();
-  return { ...render, elems, edges: featureEdges(elems), skinNe: 0, init, ...paintGoose(init) };
+  const scene = { ...render, elems, edges: featureEdges(elems), skinNe: 0, init, ...paintGoose(init) };
+  assert(scene.edges.length * 4 === scene.elems.length, "an edge byte per element");
+  assert(scene.skin.length * 3 === scene.init.length, "a skin colour per particle");
+  assert(scene.strain.length * 4 === scene.elems.length || scene.strain.length === 0, "a strain per element");
+  return scene;
 }
 function setupRun(mode) {
+  assert(mode === PANEL || mode === RIGID_WALL, "the mode is panel or wall");
+  assert(st.speed > 0 && st.tSkin > 0, "the speed and the skin are positive");
   const pr = preset(st.preset);
+  assert(pr.cells > 0 && pr.spacing > 0, "the preset has a skin grid and a bird lattice");
   eng.setSkin(st.tSkin);
   eng.setup(mode, pr.cells, pr.spacing, st.speed);
   st.batch = { seen: 0, steps: 16 };
   st.mode = mode;
   legend();
   const scene = sceneOf();
+  assert(scene.nodes.length % 3 === 0, "node positions come in triples");
   scene.skinNe = mode === PANEL ? skinElements(pr.cells) : 0;
+  assert(scene.skinNe >= 0, "the skin element count is not negative");
   st.scene = scene;
   st.ke0 = eng.birdKE();
   $("energyTitle").textContent = `Goose energy at start: ${fmt(st.ke0 / 1000, 1)} kJ`;
@@ -641,6 +885,8 @@ function setupRun(mode) {
   st.solverPhase = -1;
   drawForceChart();
   telemetry();
+  assert(st.scene === scene, "the new scene is the current one");
+  assert(st.hist.length === 0 && st.peakF === 0, "the run history is cleared");
   return scene;
 }
 var canvas = canvasOf("view");
@@ -649,24 +895,39 @@ var W = 0;
 var H = 0;
 var DPR = 1;
 function resize() {
+  assert(canvas.isConnected, "the view canvas is in the page");
   DPR = Math.min(window.devicePixelRatio || 1, 2);
+  assert(DPR > 0 && DPR <= 2, "the pixel ratio is in range");
   const r = canvas.getBoundingClientRect();
   W = Math.max(1, Math.round(r.width * DPR));
   H = Math.max(1, Math.round(r.height * DPR));
+  assert(W >= 1 && H >= 1, "the canvas has a size");
+  assert(Number.isInteger(W) && Number.isInteger(H), "the canvas size is whole pixels");
   canvas.width = W;
   canvas.height = H;
 }
 new ResizeObserver(resize).observe(canvas);
 var cam = { eye: [0, 0, 0], r: [1, 0, 0], u: [0, 1, 0], f: [0, 0, 1], foc: 1 };
 function norm(v) {
+  assert(v.length === 3, "a vector has three components");
   const l = Math.hypot(v[0], v[1], v[2]) || 1;
+  assert(l > 0, "the divisor is not zero");
   return [v[0] / l, v[1] / l, v[2] / l];
 }
 function cross(a, b) {
+  assert(a.length === 3 && b.length === 3, "a cross product takes two vectors");
+  assert(a !== b, "a vector is not crossed with itself");
   return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 }
-var dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+function dot(a, b) {
+  assert(a.length === 3 && b.length === 3, "a dot product takes two vectors");
+  assert(a !== null && b !== null, "both vectors exist");
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
 function setCamera() {
+  assert(H > 0, "the canvas has a height");
+  assert(st.dist >= DIST_MIN && st.dist <= DIST_MAX, "the camera distance is in range");
+  assert(Math.abs(st.pitch) <= PITCH_LIMIT, "the camera pitch is in range");
   let eye, target;
   const upHint = [0, 1, 0];
   if (st.pov) {
@@ -682,6 +943,8 @@ function setCamera() {
   cam.r = norm(cross(cam.f, upHint));
   cam.u = cross(cam.r, cam.f);
   cam.foc = 0.5 * H / Math.tan((st.pov ? 34 : 20) * Math.PI / 180);
+  assert(cam.foc > 0 && Number.isFinite(cam.foc), "the focal length is positive");
+  assert(Math.abs(Math.hypot(cam.f[0], cam.f[1], cam.f[2]) - 1) < 0.000001, "the view direction is a unit vector");
 }
 function proj(x, y, z, out, o) {
   const d = [x - cam.eye[0], y - cam.eye[1], z - cam.eye[2]];
@@ -690,7 +953,6 @@ function proj(x, y, z, out, o) {
   out[o + 1] = 0.5 * H - cam.foc * cy / cz;
   out[o + 2] = cz;
 }
-var DEPTH_BUCKETS = 4096;
 var sNodes = new Float32Array(0);
 var sParts = new Float32Array(0);
 var keys = new Float32Array(0);
@@ -698,6 +960,8 @@ var order = new Int32Array(0);
 var tmp = new Int32Array(0);
 var counts = new Int32Array(DEPTH_BUCKETS + 1);
 function depthSort(n) {
+  assert(n >= 0 && n <= keys.length, "every item has a sort key");
+  assert(n <= order.length && n <= tmp.length, "every item has a slot");
   let lo = Infinity, hi = -Infinity;
   for (let i = 0;i < n; i++) {
     const k = at(keys, i);
@@ -716,38 +980,57 @@ function depthSort(n) {
   }
   for (let b = 0;b < DEPTH_BUCKETS; b++)
     counts[b + 1] = at(counts, b + 1) + at(counts, b);
+  assert(at(counts, DEPTH_BUCKETS) === n, "the bucket offsets add up to the item count");
   for (let i = 0;i < n; i++) {
     const b = at(tmp, i), slot = at(counts, b);
     order[slot] = i;
     counts[b] = slot + 1;
   }
+  assert(order.length >= n, "the order covers every item");
 }
 function grow(n) {
+  assert(n >= 0, "the item count is not negative");
+  assert(Number.isInteger(n), "the item count is whole");
   if (keys.length < n) {
     keys = new Float32Array(n);
     order = new Int32Array(n);
     tmp = new Int32Array(n);
   }
+  assert(keys.length >= n && order.length >= n && tmp.length >= n, "the sort buffers cover every item");
 }
 function smoothstep(a, b, x) {
+  assert(a !== b, "the ramp has a width");
+  assert(!Number.isNaN(x), "the input is a number");
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
+  const out = t * t * (3 - 2 * t);
+  assert(out >= 0 && out <= 1, "the smooth step stays between 0 and 1");
+  return out;
 }
 function rgb(c) {
+  assert(c.length >= 3, "a colour has three channels");
+  assert(Number.isFinite(at(c, 0) + at(c, 1) + at(c, 2)), "the channels are finite");
   return `rgb(${Math.round(at(c, 0))} ${Math.round(at(c, 1))} ${Math.round(at(c, 2))})`;
 }
-var map3 = (v, f) => [f(v[0]), f(v[1]), f(v[2])];
+function map3(v, f) {
+  assert(v.length === 3, "a vector has three components");
+  assert(typeof f === "function", "a mapping function is given");
+  return [f(v[0]), f(v[1]), f(v[2])];
+}
 function toLab(hex) {
+  assert(/^#[0-9a-f]{6}$/i.test(hex), "a colour is written #rrggbb");
+  assert(hex.length === 7, "a colour has seven characters");
   const lin = (k) => {
     const v = parseInt(hex.slice(k, k + 2), 16) / 255;
     return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
   };
   const l = [lin(1), lin(3), lin(5)];
+  assert(Math.min(...l) >= 0 && Math.max(...l) <= 1, "linear channels are between 0 and 1");
   const m = map3([
     0.4122214708 * l[0] + 0.5363325363 * l[1] + 0.0514459929 * l[2],
     0.2119034982 * l[0] + 0.6806995451 * l[1] + 0.1073969566 * l[2],
     0.0883024619 * l[0] + 0.2817188376 * l[1] + 0.6299787005 * l[2]
   ], Math.cbrt);
+  assert(Math.min(...m) >= 0, "the cube roots are not negative");
   return [
     0.2104542553 * m[0] + 0.793617785 * m[1] - 0.0040720468 * m[2],
     1.9779984951 * m[0] - 2.428592205 * m[1] + 0.4505937099 * m[2],
@@ -755,6 +1038,8 @@ function toLab(hex) {
   ];
 }
 function fromLab(c) {
+  assert(c.length === 3, "a Lab colour has three channels");
+  assert(Number.isFinite(c[0] + c[1] + c[2]), "the Lab channels are finite");
   const m = map3([
     c[0] + 0.3963377774 * c[1] + 0.2158037573 * c[2],
     c[0] - 0.1055613458 * c[1] - 0.0638541728 * c[2],
@@ -765,15 +1050,22 @@ function fromLab(c) {
     -1.2684380046 * m[0] + 2.6097574011 * m[1] - 0.3413193965 * m[2],
     -0.0041960863 * m[0] - 0.7034186147 * m[1] + 1.707614701 * m[2]
   ];
-  return map3(l, (v) => 255 * Math.max(0, Math.min(1, v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055)));
+  const out = map3(l, (v) => 255 * Math.max(0, Math.min(1, v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055)));
+  assert(Math.min(...out) >= 0 && Math.max(...out) <= 255, "the colour channels are 0 to 255");
+  return out;
 }
 function ramp(stops) {
+  assert(stops.length >= 2, "a ramp needs two stops");
+  assert(stops.length < 256, "a ramp has fewer stops than entries");
   const lab = stops.map(toLab), out = [];
+  assert(lab.length === stops.length, "every stop has a Lab colour");
   for (let i = 0;i < 256; i++) {
     const x = i / 255 * (lab.length - 1), k = Math.min(lab.length - 2, Math.floor(x)), f = x - k;
     const a = at(lab, k), b = at(lab, k + 1);
     out.push(fromLab([a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2])]));
   }
+  assert(out.length === 256, "a ramp has 256 entries");
+  assert(at(at(out, 0), 0) !== at(at(out, 255), 0), "the ends of a ramp differ");
   return out;
 }
 var HOT = ["#e2b54f", "#c4613f", "#6e2a22"];
@@ -782,10 +1074,11 @@ var MAPS = {
   primer: ramp(["#9da27f", ...HOT]),
   pressure: ramp(["#243552", "#3f6f86", "#94b49c", "#e8c766", "#c4613f"])
 };
-var GRID = "rgba(43, 41, 37, 0.35)";
-var SHADES = 64;
 var mapCache = new Map;
 function mapColour(name, s, shade = 1) {
+  assert(name in MAPS, "the colour map exists");
+  assert(!Number.isNaN(s), "the map position is a number");
+  assert(shade > 0 && shade < 2, "the shade is positive");
   const i = Math.round(255 * Math.max(0, Math.min(1, s))), j = Math.round(SHADES * shade);
   const key = name + (i * 32 + j);
   let c = mapCache.get(key);
@@ -793,23 +1086,41 @@ function mapColour(name, s, shade = 1) {
     c = rgb(map3(at(MAPS[name], i), (v) => v * j / SHADES));
     mapCache.set(key, c);
   }
+  assert(c.length > 0, "the colour has text");
+  assert(mapCache.size > 0, "the colour was cached");
   return c;
 }
-var logP = (p) => (Math.log10(Math.max(p, PRESSURE_LOW_PA)) - Math.log10(PRESSURE_LOW_PA)) / (Math.log10(PRESSURE_HIGH_PA) - Math.log10(PRESSURE_LOW_PA));
+function logP(p) {
+  assert(PRESSURE_HIGH_PA > PRESSURE_LOW_PA, "the pressure scale has a range");
+  assert(!Number.isNaN(p), "the pressure is a number");
+  return (Math.log10(Math.max(p, PRESSURE_LOW_PA)) - Math.log10(PRESSURE_LOW_PA)) / (Math.log10(PRESSURE_HIGH_PA) - Math.log10(PRESSURE_LOW_PA));
+}
 function pressureColour(p) {
+  assert(!Number.isNaN(p), "the pressure is a number");
+  assert(PRESSURE_LOW_PA > 0, "the pressure scale starts above zero");
   return mapColour("pressure", logP(p));
 }
 function strainColour(ep, shade, inside) {
+  assert(ep >= 0, "plastic strain is not negative");
+  assert(shade > 0 && shade < 2, "the shade is positive");
+  assert(typeof inside === "boolean", "the side flag is a boolean");
   return mapColour(inside ? "primer" : "metal", Math.sqrt(ep / EP_MAX), shade);
 }
 function cssRamp(name) {
-  return `linear-gradient(90deg, ${Array.from({ length: 17 }, (_, k) => mapColour(name, k / 16)).join(",")})`;
+  assert(name in MAPS, "the colour map exists");
+  const stops = Array.from({ length: 17 }, (_, k) => mapColour(name, k / 16));
+  assert(stops.length === 17, "a gradient has 17 stops");
+  assert(stops.join("").length > 0, "the gradient stops have text");
+  return `linear-gradient(90deg, ${stops.join(",")})`;
 }
 function render(scene, offsetZ, flap) {
+  assert(Number.isFinite(offsetZ + flap), "the approach offset and the flap are finite");
+  assert(W > 0 && H > 0, "the canvas has a size");
   setCamera();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, W, H);
   const nn = scene.nodes.length / 3, np = scene.parts.length / 3, ne = scene.elems.length / 4;
+  assert(Number.isInteger(nn) && Number.isInteger(np) && Number.isInteger(ne), "the counts are whole numbers");
   if (sNodes.length < 3 * nn)
     sNodes = new Float32Array(3 * nn);
   if (sParts.length < 3 * np)
@@ -821,8 +1132,11 @@ function render(scene, offsetZ, flap) {
   if (st.mode === RIGID_WALL)
     drawWall();
   const costume = st.costume && st.mode === PANEL;
+  assert(st.mode === PANEL || st.mode === RIGID_WALL, "the run has a known mode");
   const decor = costume ? decorations(scene, offsetZ, flap) : [];
+  assert(costume || decor.length === 0, "decorations only appear with the costume");
   const n = ne + np + decor.length;
+  assert(n >= 0 && decor.length >= 0, "there is a count of items to sort");
   grow(n);
   for (let e = 0;e < ne; e++) {
     const a = at(scene.elems, 4 * e), b = at(scene.elems, 4 * e + 1), c = at(scene.elems, 4 * e + 2), d = at(scene.elems, 4 * e + 3);
@@ -833,6 +1147,8 @@ function render(scene, offsetZ, flap) {
   for (let k = 0;k < decor.length; k++)
     keys[ne + np + k] = at(decor, k).depth;
   depthSort(n);
+  assert(keys.length >= n, "the sort keys cover every item");
+  assert(at(counts, DEPTH_BUCKETS) === n, "every item landed in a depth bucket");
   const pr = eng.spacing() * 0.62 * cam.foc;
   for (let k = 0;k < n; k++) {
     const id = at(order, k);
@@ -849,13 +1165,17 @@ function render(scene, offsetZ, flap) {
     } else
       at(decor, id - ne - np).draw();
   }
+  assert(sNodes.length >= 3 * nn && sParts.length >= 3 * np, "every node and particle was projected");
   if (costume && contactStarted())
     drawStars(scene, offsetZ);
 }
 function drawShell(scene, e) {
+  assert(e >= 0 && e < scene.strain.length, "the element exists");
+  assert(scene.elems.length === 4 * scene.strain.length, "an element has four corners");
   if (at(scene.strain, e) < 0)
     return;
   const { elems: el, nodes: P } = scene;
+  assert(sNodes.length >= P.length, "every node was projected");
   const a = at(el, 4 * e), b = at(el, 4 * e + 1), c = at(el, 4 * e + 2), d = at(el, 4 * e + 3);
   if (at(sNodes, 3 * a + 2) <= MIN_DEPTH || at(sNodes, 3 * c + 2) <= MIN_DEPTH)
     return;
@@ -864,7 +1184,9 @@ function drawShell(scene, e) {
   const nrm = norm(cross(sub(node(c), node(a)), sub(node(d), node(b))));
   const toEye = norm(sub(cam.eye, node(a)));
   const facing = dot(nrm, toEye);
+  assert(Math.abs(facing) <= 1.0001, "the facing is a cosine");
   const shade = 0.72 + 0.28 * Math.abs(facing);
+  assert(shade >= 0.72 && shade <= 1.01, "the shade is between 72 and 100 percent");
   const inside = e >= scene.skinNe || facing < 0;
   ctx.fillStyle = strainColour(at(scene.strain, e), shade, inside);
   ctx.strokeStyle = ctx.fillStyle;
@@ -883,6 +1205,7 @@ function drawShell(scene, e) {
   const f = at(scene.edges, e);
   if (!f)
     return;
+  assert(f > 0 && f < 16, "a flagged element has one to four edge bits");
   const q = [a, b, c, d];
   ctx.strokeStyle = GOOSE.ink;
   ctx.lineWidth = 1.2 * DPR;
@@ -897,7 +1220,10 @@ function drawShell(scene, e) {
   ctx.stroke();
 }
 function drawWall() {
+  assert(st.mode === RIGID_WALL, "the wall is drawn in the wall run");
+  assert(W > 0 && H > 0, "the canvas has a size");
   const o = [0, 0, 0];
+  assert(o.length === 3, "a projected point has x, y and depth");
   ctx.strokeStyle = "#7a8794";
   ctx.lineWidth = 1;
   for (let k = -5;k <= 5; k++) {
@@ -912,16 +1238,25 @@ function drawWall() {
       ctx.stroke();
     }
   }
+  assert(o[2] !== 0, "the wall lies in front of the camera");
 }
 function contactStarted() {
-  return eng.tContact() >= 0 && st.phase !== "approach";
+  const tc = eng.tContact();
+  assert(!Number.isNaN(tc), "the contact time is a number");
+  assert(st.phase.length > 0, "the run has a phase");
+  return tc >= 0 && st.phase !== "approach";
 }
 function sp(i) {
+  assert(Number.isInteger(i) && i >= 0, "a particle index is a whole number");
+  assert(3 * i + 2 < sParts.length, "the particle was projected");
   return [at(sParts, 3 * i), at(sParts, 3 * i + 1), at(sParts, 3 * i + 2)];
 }
 function blob(pts) {
+  assert(pts.length >= 3, "a blob has at least three points");
+  assert(at(pts, 0).length === 2, "a point has two coordinates");
   const m = (p, q) => [0.5 * (p[0] + q[0]), 0.5 * (p[1] + q[1])];
   const n = pts.length;
+  assert(n >= 3, "a blob has points to smooth");
   let s = m(at(pts, n - 1), at(pts, 0));
   ctx.beginPath();
   ctx.moveTo(s[0], s[1]);
@@ -931,10 +1266,66 @@ function blob(pts) {
     ctx.quadraticCurveTo(p[0], p[1], s[0], s[1]);
   }
   ctx.closePath();
+  assert(Number.isFinite(s[0] + s[1]), "the blob closes on a finite point");
+}
+function cheekDecoration(c, rr, angle) {
+  assert(!Number.isNaN(rr), "the cheek radius is a number");
+  assert(Number.isFinite(angle), "the cheek angle is finite");
+  return { depth: c[2] - 0.008, draw() {
+    ctx.fillStyle = GOOSE.blush;
+    ctx.beginPath();
+    ctx.ellipse(c[0], c[1], rr * 1.3, rr * 0.85, angle, 0, 2 * Math.PI);
+    ctx.fill();
+  } };
+}
+function dizzySpiral(c, rr, now) {
+  assert(c.length === 3, "a centre has x, y and depth");
+  assert(Number.isFinite(now), "the clock is finite");
+  ctx.beginPath();
+  ctx.arc(c[0], c[1], rr * 0.82, 0, 2 * Math.PI);
+  ctx.fill();
+  ctx.strokeStyle = GOOSE.ink;
+  ctx.lineWidth = Math.max(DPR, 0.16 * rr);
+  ctx.beginPath();
+  const turn = now / 120;
+  for (let k = 0;k <= 40; k++) {
+    const a = turn + k * 0.45, q = rr * 0.7 * k / 40;
+    const x = c[0] + q * Math.cos(a), y = c[1] + q * Math.sin(a);
+    if (k === 0)
+      ctx.moveTo(x, y);
+    else
+      ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+function eyeDecoration(c, rr, dizzy, now) {
+  assert(c.length === 3, "a centre has x, y and depth");
+  assert(Number.isFinite(now), "the clock is finite");
+  assert(!Number.isNaN(rr), "the eye radius is a number");
+  return { depth: c[2] - 0.01, draw() {
+    ctx.fillStyle = GOOSE.ink;
+    ctx.beginPath();
+    ctx.arc(c[0], c[1], rr, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    if (dizzy) {
+      dizzySpiral(c, rr, now);
+    } else {
+      ctx.beginPath();
+      ctx.arc(c[0] - rr * 0.32, c[1] - rr * 0.32, rr * 0.34, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(c[0] + rr * 0.3, c[1] + rr * 0.3, rr * 0.14, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+  } };
 }
 function decorations(scene, offsetZ, flap) {
+  assert(scene.anchors.eyes.length === 2, "the goose has two eyes");
+  assert(Number.isFinite(offsetZ + flap), "the approach offset and the flap are finite");
   const now = reducedMotion.matches ? 0 : performance.now();
   const A = scene.anchors, D = eng.birdD(), P = scene.parts;
+  assert(D > 0 && P.length > 0, "the bird has a size and particles");
   const wp = (i) => [at(P, 3 * i), at(P, 3 * i + 1), at(P, 3 * i + 2) + offsetZ];
   const pt = (w) => {
     const o = [0, 0, 0];
@@ -991,55 +1382,16 @@ function decorations(scene, offsetZ, flap) {
     const c = sp(i), k = scale(c[2]);
     part(c, GOOSE.orange, [at2(c, k, 0, 0), at2(c, k, -0.06, -0.2), at2(c, k, 0.06, -0.26), at2(c, k, 0.22, -0.2), at2(c, k, 0.1, -0.08)], -0.01);
   }
-  for (const i of A.cheeks) {
-    const c = sp(i);
-    const rr = 0.07 * scale(c[2]);
-    list.push({ depth: c[2] - 0.008, draw() {
-      ctx.fillStyle = GOOSE.blush;
-      ctx.beginPath();
-      ctx.ellipse(c[0], c[1], rr * 1.3, rr * 0.85, Math.atan2(uy, ux), 0, 2 * Math.PI);
-      ctx.fill();
-    } });
-  }
-  for (const i of A.eyes) {
-    const c = sp(i);
-    const rr = 0.11 * scale(c[2]);
-    list.push({ depth: c[2] - 0.01, draw() {
-      ctx.fillStyle = GOOSE.ink;
-      ctx.beginPath();
-      ctx.arc(c[0], c[1], rr, 0, 2 * Math.PI);
-      ctx.fill();
-      ctx.fillStyle = "#fff";
-      if (dizzy) {
-        ctx.beginPath();
-        ctx.arc(c[0], c[1], rr * 0.82, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.strokeStyle = GOOSE.ink;
-        ctx.lineWidth = Math.max(DPR, 0.16 * rr);
-        ctx.beginPath();
-        const turn = now / 120;
-        for (let k = 0;k <= 40; k++) {
-          const a = turn + k * 0.45, q = rr * 0.7 * k / 40;
-          const x = c[0] + q * Math.cos(a), y = c[1] + q * Math.sin(a);
-          if (k === 0)
-            ctx.moveTo(x, y);
-          else
-            ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-      } else {
-        ctx.beginPath();
-        ctx.arc(c[0] - rr * 0.32, c[1] - rr * 0.32, rr * 0.34, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(c[0] + rr * 0.3, c[1] + rr * 0.3, rr * 0.14, 0, 2 * Math.PI);
-        ctx.fill();
-      }
-    } });
-  }
+  for (const i of A.cheeks)
+    list.push(cheekDecoration(sp(i), 0.07 * scale(sp(i)[2]), Math.atan2(uy, ux)));
+  for (const i of A.eyes)
+    list.push(eyeDecoration(sp(i), 0.11 * scale(sp(i)[2]), dizzy, now));
+  assert(list.length === A.wings.length + A.feet.length + A.cheeks.length + A.eyes.length + 2, "every part of the goose has a decoration");
   return list;
 }
 function drawStars(scene, offsetZ) {
+  assert(scene.parts.length > 0 && scene.parts.length % 3 === 0, "the goose has particles in triples");
+  assert(Number.isFinite(offsetZ), "the approach offset is finite");
   const P = scene.parts, np = P.length / 3;
   let cx = 0, cy = 0, cz = 0;
   for (let i = 0;i < np; i++) {
@@ -1050,13 +1402,16 @@ function drawStars(scene, offsetZ) {
   cx /= np;
   cy /= np;
   cz /= np;
+  assert(Number.isFinite(cx + cy + cz), "the centroid is finite");
   const D = eng.birdD(), t = reducedMotion.matches ? 0 : performance.now() / 500, o = [0, 0, 0];
+  assert(D > 0 && Number.isFinite(t), "the stars orbit a bird of positive size");
   for (let k = 0;k < 3; k++) {
     const a = t + k * 2.094;
     proj(cx + 0.6 * D * Math.cos(a), cy + 0.9 * D, cz + offsetZ + 0.6 * D * Math.sin(a), o, 0);
     if (o[2] <= MIN_DEPTH)
       continue;
     const r = 0.1 * D * cam.foc / o[2];
+    assert(r > 0, "a star has a radius");
     const q = [];
     for (let j = 0;j < 10; j++) {
       const ang = -Math.PI / 2 + j * Math.PI / 5, rr = j % 2 ? r * 0.5 : r;
@@ -1084,13 +1439,19 @@ var chartResize = new ResizeObserver((entries) => {
   }
 });
 function chart(cv, series, opt) {
+  assert(series.length > 0, "a chart has a series");
+  assert(opt.xmax > opt.xmin && opt.ymax > opt.ymin, "the axes have a range");
+  assert(opt.xticks.length > 0 && opt.yticks.length > 0, "the axes have ticks");
+  assert(!opt.log || opt.ymin > 0, "a log axis starts above zero");
   if (!chartData.has(cv))
     chartResize.observe(cv);
   chartData.set(cv, { series, opt });
   const dpr = DPR, r = cv.getBoundingClientRect();
+  assert(dpr > 0, "the pixel ratio is positive");
   cv.width = Math.round(r.width * dpr);
   cv.height = Math.round(r.height * dpr);
   const c = context2d(cv);
+  assert(c.canvas === cv, "the chart draws on its own canvas");
   const css = getComputedStyle(document.body);
   const ink = css.getPropertyValue("--ink"), muted = css.getPropertyValue("--muted"), line = css.getPropertyValue("--line");
   c.scale(dpr, dpr);
@@ -1132,6 +1493,7 @@ function chart(cv, series, opt) {
     c.fillText(hl.label, w - R - 2, Y(hl.y) - 4);
   }
   for (const s of series) {
+    assert(s.xs.length === s.ys.length, "a series has one y per x");
     c.strokeStyle = s.color || ink;
     c.lineWidth = 1.6;
     c.beginPath();
@@ -1144,18 +1506,28 @@ function chart(cv, series, opt) {
     });
     c.stroke();
   }
+  assert(chartData.get(cv)?.series === series, "the chart data is kept for resizes");
 }
 function ticks(max, n) {
+  assert(max > 0 && Number.isFinite(max), "the tick range is positive");
+  assert(Number.isInteger(n) && n > 0, "the tick count is a whole number");
   const raw = max / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  assert(raw > 0 && mag > 0, "the raw step has a magnitude");
   const step = [1, 2, 5, 10].map((m) => m * mag).find((s) => s >= raw) ?? 10 * mag;
+  assert(step >= raw, "the step is at least the raw step");
   const out = [];
   for (let v = 0;v <= max + 0.000000001; v += step)
     out.push(+v.toFixed(6));
+  assert(out.length >= 1 && out[0] === 0, "the ticks start at zero");
+  assert(at(out, out.length - 1) <= max + 0.000001, "the ticks stay within the range");
   return out;
 }
 function drawForceChart() {
+  assert(canvasOf("forceChart").isConnected, "the force chart canvas exists");
   const xs = st.hist.map((h) => h.t * 1e6), ys = st.hist.map((h) => h.f / 1000);
+  assert(xs.length === ys.length, "there is one force per time");
   const ymax = Math.max(50, ...ys) * 1.1;
+  assert(ymax > 0 && Number.isFinite(ymax), "the force axis has a range");
   chart(canvasOf("forceChart"), [{ xs, ys }], {
     xmin: 0,
     xmax: T_END * 1e6,
@@ -1167,24 +1539,36 @@ function drawForceChart() {
     ylabel: "contact force (kN)"
   });
 }
-var isRunning = () => st.phase === "approach" || st.phase === "sim" || st.phase === "wall";
+function isRunning() {
+  assert(st.phase.length > 0, "the run has a phase");
+  assert(st.scene !== null || st.phase === "idle", "a run has a scene");
+  return st.phase === "approach" || st.phase === "sim" || st.phase === "wall";
+}
 function fire() {
+  assert(st.speed > 0, "the goose has a speed");
   if (isRunning())
     return;
+  assert(st.phase === "idle" || st.phase === "done", "a run starts from rest");
   setupRun(PANEL);
   st.phase = "approach";
+  assert(st.scene !== null, "set-up built a scene");
+  assert(st.mode === PANEL, "the fire button starts a panel run");
   st.t0 = performance.now();
   startGif();
   $("verdict").hidden = true;
   setBusy(true);
+  assert(button("stop").disabled === false, "the stop button works during a run");
   const view = canvas.getBoundingClientRect();
   if (view.top < 0 || view.bottom > window.innerHeight) {
     canvas.scrollIntoView({ behavior: "instant", block: "nearest" });
   }
+  assert(st.gif !== null, "a GIF recording started with the run");
   honk(Math.sqrt(st.speed / V_C));
   honk(Math.sqrt(st.speed / V_C) * 1.06, 0.3);
 }
 function setBusy(b) {
+  assert(typeof b === "boolean", "the busy flag is a boolean");
+  assert(button("fire").isConnected && button("stop").isConnected, "the run buttons exist");
   const focusStop = b && (document.activeElement === $("fire") || document.activeElement === $("wilbeck"));
   const focusFire = !b && document.activeElement === $("stop");
   button("fire").disabled = b;
@@ -1199,20 +1583,27 @@ function setBusy(b) {
   const snap = document.getElementById("snap");
   if (snap instanceof HTMLButtonElement)
     snap.disabled = b;
+  assert(button("fire").disabled === b, "the fire button follows the busy flag");
+  assert(button("stop").disabled === !b, "the stop button follows the busy flag");
   if (focusStop)
     button("stop").focus({ preventScroll: true });
   if (focusFire)
     button("fire").focus({ preventScroll: true });
 }
 function clearWallChart() {
+  assert(canvasOf("wallChart").isConnected, "the wall chart canvas exists");
   const wallChart = canvasOf("wallChart");
+  assert(wallChart.width >= 0 && wallChart.height >= 0, "the wall chart has a size");
   chartResize.unobserve(wallChart);
   chartData.delete(wallChart);
   context2d(wallChart).clearRect(0, 0, wallChart.width, wallChart.height);
+  assert(!chartData.has(wallChart), "the wall chart is forgotten");
 }
 function stopRun() {
+  assert(button("stop").isConnected, "the stop button exists");
   if (!isRunning())
     return;
+  assert(st.phase !== "idle" && st.phase !== "done", "only a running run is stopped");
   if (st.mode === RIGID_WALL) {
     st.wall = null;
     clearWallChart();
@@ -1222,11 +1613,17 @@ function stopRun() {
   st.gifHold = false;
   $("bubble").hidden = true;
   preview();
+  assert(st.phase === "idle", "the goose is reset to idle");
+  assert(st.hist.length === 0, "the force history is cleared");
   setBusy(false);
+  assert(!button("fire").disabled, "the fire button works again");
   $("runStatus").textContent = "Run stopped. Goose reset.";
   $("banner").textContent = "Run stopped. Goose reset. Select a speed or resolution, then press Fire the goose.";
+  assert(st.gif === null && !st.gifHold, "the recording was dropped");
 }
 function stepSolver(cpu, tEnd, perStep) {
+  assert(tEnd > 0, "the run has an end time");
+  assert(typeof perStep === "function", "a per-step callback is given");
   const t0 = performance.now(), s0 = cpu.time();
   let steps = 0, t = t0;
   while (t - t0 < BUDGET_MS) {
@@ -1241,17 +1638,23 @@ function stepSolver(cpu, tEnd, perStep) {
     }
   }
   const ms = t - t0;
+  assert(ms >= 0 && steps >= 0, "time and steps run forwards");
   st.msPerStep = steps ? ms / steps : 0;
   st.frameSim = cpu.time() - s0;
+  assert(st.msPerStep >= 0 && st.frameSim >= 0, "the step timing is not negative");
   return cpu.time() >= tEnd;
 }
 function gpuStep(gpu, tEnd, perStep) {
+  assert(tEnd > 0, "the run has an end time");
+  assert(gpu.gpu, "the GPU stepper gets a GPU engine");
+  assert(st.batch.steps >= GPU_BATCH_MIN && st.batch.steps <= GPU_BATCH_MAX, "the batch size is in range");
   const b = st.batch, s0 = gpu.time();
   let got = 0, steps = 0, r;
   while ((r = gpu.poll()) === 1)
     got++;
   if (r < 0)
     throw new Error("the GPU read-back failed");
+  assert(got >= 0, "the count of finished batches is not negative");
   if (got) {
     const h = gpu.history();
     steps = h.length / 4 - b.seen;
@@ -1266,15 +1669,24 @@ function gpuStep(gpu, tEnd, perStep) {
     b.steps = Math.min(GPU_BATCH_MAX, Math.ceil(b.steps * 1.5));
   if (got === 0 && gpu.pending() === 2)
     b.steps = Math.max(GPU_BATCH_MIN, Math.floor(b.steps * 0.8));
+  assert(b.steps >= GPU_BATCH_MIN && b.steps <= GPU_BATCH_MAX, "the batch size stays in range");
+  assert(b.seen >= 0, "the history cursor is not negative");
   if (!gpu.running())
     return gpu.pending() === 0;
   while (gpu.run(b.steps, tEnd))
     ;
   return false;
 }
-var solve = (tEnd, perStep) => eng.gpu ? gpuStep(eng, tEnd, perStep) : stepSolver(eng, tEnd, perStep);
+function solve(tEnd, perStep) {
+  assert(tEnd > 0, "the run has an end time");
+  assert(typeof perStep === "function", "a per-step callback is given");
+  return eng.gpu ? gpuStep(eng, tEnd, perStep) : stepSolver(eng, tEnd, perStep);
+}
 function telemetry() {
+  assert($("tele").isConnected, "the telemetry list exists");
+  assert(st.ke0 > 0, "the start energy is positive");
   const tc = eng.tContact();
+  assert(!Number.isNaN(tc), "the contact time is a number");
   const rows = [
     ["sim time", `${fmt(eng.time() * 1e6, 1)} µs`],
     ["since contact", tc >= 0 ? `${fmt((eng.time() - tc) * 1e6, 1)} µs` : "goose airborne"],
@@ -1295,8 +1707,10 @@ function telemetry() {
     ["skin", `${fmt(st.tSkin * 1000, 1)} mm 2024-T3`]
   ];
   const tele = $("tele");
+  assert(rows.length > 0, "there are telemetry rows");
   if (!tele.children.length)
     tele.innerHTML = rows.map(([k]) => `<dt>${k}</dt><dd></dd>`).join("");
+  assert(tele.children.length === 2 * rows.length, "each row has a term and a definition");
   rows.forEach(([, v], i) => {
     const cell = at(tele.children, 2 * i + 1);
     if (cell.textContent !== v)
@@ -1310,12 +1724,19 @@ function telemetry() {
     ["panel strain + plastic", eng.panelWork(), "#c4613f"]
   ];
   const sum = parts.reduce((s, p) => s + p[1], 0);
+  assert(parts.length === 4, "the energy bar has four parts");
+  assert(Number.isFinite(sum), "the energy sum is finite");
   $("ebar").innerHTML = parts.map(([, v, c]) => `<div style="width:${Math.max(0, v / st.ke0 * 100)}%;background:${c}"></div>`).join("");
   $("ekey").innerHTML = parts.map(([k, v, c]) => `<li><span><i style="background:${c}"></i>${k}</span><span>${fmt(v / 1000, 2)} kJ</span></li>`).join("") + `<li><span>balance error</span><span>${sign((sum / st.ke0 - 1) * 100, 2)} %</span></li>`;
+  assert($("ekey").children.length === parts.length + 1, "the energy key lists each part and the balance");
 }
 function verdict() {
+  assert(st.scene !== null, "a run built a scene");
+  assert(st.ke0 > 0, "the start energy is positive");
   const v = $("verdict"), pr = preset(st.preset);
   const skin = eng.failedSkin(), stiff = eng.failed() - skin;
+  assert(skin >= 0, "the eroded skin count is not negative");
+  assert(Number.isFinite(stiff), "the eroded stiffener count is finite");
   const breached = skin > 0;
   v.className = "frame panel verdict " + (breached ? "breached" : "held");
   v.hidden = false;
@@ -1334,31 +1755,46 @@ function verdict() {
       and ${PRESETS.map((p) => p.skin).join(", ")} eroded skin elements at ${PRESETS.map((p) => fmt(p.spacing * 1000, 1)).join(", ")} mm.
       From 9 mm to 4.5 mm, the deflection changes by less than 2 %.${eng.gpu ? " At 3.5 mm, many more skin elements erode, a hole opens in the skin, and the deflection is 50 % larger." : ""}
       The skin erosion does not converge: erosion depends on the element size, so a tear prediction needs a mesh-calibrated failure model.</p>`;
+  assert(!v.hidden, "the verdict is shown");
+  assert(v.innerHTML.length > 0, "the verdict has text");
 }
 function wallCheck() {
+  assert(button("wilbeck").isConnected, "the wall check button exists");
   if (isRunning())
     return;
+  assert(st.phase === "idle" || st.phase === "done", "a wall check starts from rest");
   setupRun(RIGID_WALL);
   const v = st.speed;
+  assert(v > 0, "the goose has a speed");
   const [ph, us] = hugoniot(v);
+  assert(ph > 0 && us > v, "the Hugoniot pressure is positive and the shock outruns the bird");
   st.wall = { ph, us, ps: stagnation(v), tl: eng.birdL() / v, area: Math.PI * eng.sensorR() ** 2, xs: [], ys: [], peak: 0, plat: 0, platN: 0 };
   st.phase = "wall";
+  assert(st.wall !== null && st.wall.area > 0, "the wall check has a sensor");
+  assert(st.wall.tl > 0, "the bird has a length in time");
   clearWallChart();
   $("wilbeckOut").textContent = "Wall check active. No result yet.";
   startGif();
   $("verdict").hidden = true;
   $("wallChart").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
   setBusy(true);
+  assert(!button("stop").disabled, "the stop button works during a run");
+  assert(st.mode === RIGID_WALL, "the wall check runs in the wall mode");
   honk(0.8);
 }
 function wallSample(time, f, fc) {
+  assert(time >= 0, "time runs forwards");
+  assert(st.phase === "wall", "samples arrive during the wall check");
+  assert(!Number.isNaN(f + fc), "the forces are numbers");
   st.peakF = Math.max(st.peakF, f);
   const w = must(st.wall, "the wall check"), tc = eng.tContact(), t = time - tc;
+  assert(w.area > 0, "the sensor has an area");
   if (tc < 0 || t < 0)
     return;
   const p = fc / w.area;
   w.xs.push(t * 1e6);
   w.ys.push(p / 1e6);
+  assert(w.xs.length === w.ys.length, "a pressure was kept for each time");
   if (p > w.peak)
     w.peak = p;
   if (t > 0.25 * w.tl && t < 0.75 * w.tl) {
@@ -1371,7 +1807,10 @@ function wallSample(time, f, fc) {
   }
 }
 function drawWallChart() {
+  assert(st.phase === "wall", "the wall chart is drawn during the wall check");
   const w = must(st.wall, "the wall check");
+  assert(w.tl > 0 && w.area > 0, "the wall check has a duration and a sensor");
+  assert(w.xs.length === w.ys.length, "the series has one y per x");
   chart(canvasOf("wallChart"), [{ xs: w.xs, ys: w.ys, color: "#3f6f86" }], {
     xmin: 0,
     xmax: WALL_RUN_LENGTHS * w.tl * 1e6,
@@ -1388,6 +1827,8 @@ function drawWallChart() {
     ]
   });
   const pm = w.platN ? w.plat / w.platN : 0;
+  assert(w.ps > 0 && w.ph > 0, "the reference pressures are positive");
+  assert(w.platN >= 0, "the plateau count is not negative");
   $("wilbeckOut").textContent = `v = ${fmt(st.speed, 2)} m/s, bird lattice ${fmt(preset(st.preset).spacing * 1000, 1)} mm, ${fmt(eng.np(), 0)} particles, sensor r = ${fmt(eng.sensorR() * 1000, 2)} mm
 ` + `Hugoniot  P_H = ${fmt(w.ph / 1e6, 1)} MPa (U_s = ${fmt(w.us, 0)} m/s)   peak    ${fmt(w.peak / 1e6, 1)} MPa   error ${sign((w.peak - w.ph) / w.ph * 100)} %
 ` + `Stagnation P_s = ${fmt(w.ps / 1e6, 2)} MPa                plateau ${fmt(pm / 1e6, 2)} MPa   error ${w.platN ? sign((pm - w.ps) / w.ps * 100) : "—"} %
@@ -1395,6 +1836,8 @@ function drawWallChart() {
 }
 var lastFrame = performance.now();
 function frame(now) {
+  assert(Number.isFinite(now), "the frame time is finite");
+  assert(now >= 0, "the frame time is not negative");
   try {
     drawFrame(now);
   } catch (error) {
@@ -1402,17 +1845,24 @@ function frame(now) {
     stopRun();
     $("banner").textContent = "The solver failed. Run stopped. Reload the page to try again.";
   }
+  assert(typeof requestAnimationFrame === "function", "the page can ask for another frame");
   requestAnimationFrame(frame);
 }
 function finishRun() {
+  assert(isRunning(), "only a running run can finish");
   st.phase = "done";
   st.solverPhase = -1;
   st.gifHold = true;
   setBusy(false);
+  assert(st.phase === "done" && st.solverPhase === -1, "the run is finished");
+  assert(!button("fire").disabled, "the fire button works again");
 }
 function drawFrame(now) {
+  assert(Number.isFinite(now), "the frame time is finite");
+  assert(typeof st.phase === "string", "the run has a phase");
   st.frameReal = now - lastFrame;
   st.fps += 0.05 * (1000 / Math.max(st.frameReal, 1) - st.fps);
+  assert(st.fps > 0 && Number.isFinite(st.fps), "the frame rate is positive");
   lastFrame = now;
   let offsetZ = 0, flap = 0;
   const banner = $("banner");
@@ -1465,6 +1915,8 @@ function drawFrame(now) {
   } else if (st.phase === "done") {
     bannerText = "Done. Drag to orbit. Scroll to zoom. Fire again for another goose.";
   }
+  assert(offsetZ >= 0 && Number.isFinite(offsetZ), "the goose has not passed the panel");
+  assert(Math.abs(flap) <= 1, "the wing flap is between -1 and 1");
   if (bannerText !== undefined && banner.textContent !== bannerText)
     banner.textContent = bannerText;
   if (st.scene)
@@ -1473,18 +1925,25 @@ function drawFrame(now) {
   codeView(now);
 }
 function refreshScene() {
+  assert(st.phase !== "idle", "the scene only refreshes during a run");
   if (st.scene)
     Object.assign(st.scene, readRender());
+  assert(st.scene === null || st.scene.press.length * 3 === st.scene.parts.length, "the scene has a pressure per particle");
 }
 function legend() {
+  assert($("legend").isConnected, "the legend exists");
   const showP = !st.costume || st.mode === RIGID_WALL;
   $("legend").innerHTML = (showP ? `bird pressure (log)<div class="ramp" style="background:${cssRamp("pressure")}"></div><span class="ticks"><span>0.1</span><span>6.3</span><span>400 MPa</span></span>` : "") + (st.mode === PANEL ? `panel plastic strain (square-root scale)<div class="ramp" style="background:${cssRamp("metal")}"></div><span class="ticks">${[0, 1, 2, 3].map((k) => `<span>${fmt(EP_MAX * 100 * k * k / 9, 0)}${k === 3 ? " %" : ""}</span>`).join("")}</span>` : "");
+  assert($("legend").innerHTML.length > 0, "the legend has a colour scale");
 }
 function startGif() {
+  assert(W > 0 && H > 0, "the canvas has a size");
   const h = Math.round(GIF_W * H / W) & ~1;
+  assert(h > 0 && h % 2 === 0, "the GIF height is even and positive");
   const cv = document.createElement("canvas");
   cv.width = GIF_W;
   cv.height = h + GIF_CAPTION_PX;
+  assert(cv.height > GIF_CAPTION_PX, "the GIF has room for the picture");
   st.gif = {
     rec: new GifRecorder(GIF_W, h + GIF_CAPTION_PX),
     h,
@@ -1496,11 +1955,14 @@ function startGif() {
     title: st.mode === PANEL ? preset(st.preset).name : "Rigid wall check"
   };
   st.gifHold = false;
+  assert(st.gif !== null && st.gif.rec.frames.length === 0, "the recorder starts empty");
   button("gif").disabled = true;
   $("gif").textContent = "Export GIF";
 }
 function captureGif(now) {
+  assert(Number.isFinite(now), "the frame time is finite");
   const g = st.gif;
+  assert(g === null || g.h > 0, "the GIF picture has a height");
   if (!g || g.done)
     return;
   let delay;
@@ -1521,10 +1983,13 @@ function captureGif(now) {
   } else
     return;
   const c = context2d(g.cv);
+  assert(g.cv.width === GIF_W && g.cv.height === g.h + GIF_CAPTION_PX, "the GIF canvas has the frame size");
+  assert(delay > 0, "the frame has a delay");
   const css = getComputedStyle(document.body);
   c.fillStyle = css.getPropertyValue("--stage");
   c.fillRect(0, 0, GIF_W, g.h);
   const scale = Math.min(GIF_W / canvas.width, g.h / canvas.height);
+  assert(scale > 0, "the picture is scaled into the frame");
   const w = canvas.width * scale, h = canvas.height * scale;
   c.drawImage(canvas, (GIF_W - w) / 2, (g.h - h) / 2, w, h);
   c.fillStyle = css.getPropertyValue("--bg");
@@ -1550,15 +2015,19 @@ function captureGif(now) {
   g.rec.add(c.getImageData(0, 0, GIF_W, g.h + GIF_CAPTION_PX), delay);
 }
 async function exportGif() {
+  assert(button("gif").isConnected, "the GIF button exists");
   const g = st.gif;
+  assert(g === null || g.rec.w === GIF_W, "the recorder has the GIF width");
   if (!g || !g.rec.frames.length)
     return;
+  assert(g.rec.frames.length > 0, "there are frames to export");
   const b = button("gif");
   b.disabled = true;
   b.textContent = "Making the GIF…";
   await new Promise((r) => setTimeout(r, 30));
   try {
     const bytes = g.rec.encode();
+    assert(bytes.length > 0, "the GIF has bytes");
     const url = URL.createObjectURL(new Blob([bytes], { type: "image/gif" }));
     setTimeout(() => URL.revokeObjectURL(url), 1e4);
     const a = document.createElement("a");
@@ -1576,18 +2045,14 @@ async function exportGif() {
     }
   }
 }
-var PHASES = [
-  { name: "time step", fns: ["stable_dt", "shell_dt"] },
-  { name: "SPH bird", fns: ["sph_forces", "bin_particles"] },
-  { name: "shells, plasticity, erosion", fns: ["shell_forces", "shell_element", "plane_stress_return"] },
-  { name: "contact", fns: ["contact", "bin_elements", "closest_tri"] },
-  { name: "integration", fns: ["integrate", "tait"] }
-];
 var code = { lines: null, step: null, ranges: [], shown: -2, last: 0, scrolled: 0, scrolledK: -1, chips: [] };
 async function loadCode() {
+  assert($("code").isConnected && $("step").isConnected, "the code panes exist");
   const src = await (await fetch(SOURCE_URL)).text();
+  assert(src.length > 0, "the source file is not empty");
   const lines = src.replace(/\n$/, "").split(`
 `);
+  assert(lines.length > 0, "the source has lines");
   const fnRange = (name) => {
     let a = lines.findIndex((l) => new RegExp(`^(export )?fn ${name}\\(`).test(l));
     if (a < 0)
@@ -1600,6 +2065,7 @@ async function loadCode() {
     return [a, b];
   };
   const [r0, r1] = must(fnRange("run_phase"), "run_phase in strike.goose");
+  assert(r0 < r1 && r1 < lines.length, "run_phase spans lines of the source");
   code.ranges = PHASES.map((ph, k) => {
     const a = lines.findIndex((l, i) => i > r0 && i < r1 && (l.includes(`k == ${k} {`) || k === 4 && l.trim() === "} else {"));
     let b = a + 1;
@@ -1609,6 +2075,7 @@ async function loadCode() {
     return [[a, b - 1], ...functions];
   });
   const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  assert(code.ranges.length === PHASES.length, "every phase has line ranges");
   const kw = /\b(fn|let|var|if|else|for|in|while|return|export|import|continue)\b/g;
   const html = (i) => {
     const l = at(lines, i), c = l.indexOf("//");
@@ -1624,19 +2091,26 @@ async function loadCode() {
   code.chips = [...$("phases").querySelectorAll("button")];
   for (const b of code.chips)
     b.onclick = () => scrollCode(Number(b.dataset["k"]));
+  assert(code.chips.length === PHASES.length, "every phase has a chip");
+  assert(code.lines !== null && code.step !== null, "the code lines were read");
 }
 function scrollCode(k) {
+  assert(Number.isInteger(k) && k >= 0 && k < PHASES.length, "k is a phase");
+  assert($("code").isConnected, "the code pane exists");
   const ranges = at(code.ranges, k);
+  assert(ranges.length >= 1, "a phase has at least its step range");
   const first = ranges[1]?.[0] ?? at(ranges, 0)[0];
   const el = at(must(code.lines, "the code lines"), first);
   $("code").scrollTo({ top: el.offsetTop - $("code").offsetTop - 8, behavior: reducedMotion.matches ? "instant" : "smooth" });
 }
 function codeView(now) {
+  assert(Number.isFinite(now), "the frame time is finite");
   if (!code.lines || now - code.last < 120)
     return;
   code.last = now;
   const running = st.phase === "sim" || st.phase === "wall";
   const k = running ? st.solverPhase : -1;
+  assert(k >= -1 && k < PHASES.length, "the phase is known or none");
   const focused = document.activeElement;
   const sourceFocused = focused === $("code") || focused === $("step") || code.chips.some((c) => c === focused);
   if (!sourceFocused && k >= 0 && k !== code.scrolledK && now - code.scrolled > 1000) {
@@ -1649,6 +2123,7 @@ function codeView(now) {
     $("codeState").textContent = state;
   if (k === code.shown)
     return;
+  assert(code.chips.length === PHASES.length, "every phase has a chip");
   code.chips.forEach((b, i) => {
     b.dataset["active"] = String(i === k);
   });
@@ -1668,12 +2143,15 @@ function codeView(now) {
   code.shown = k;
 }
 function showSpeed() {
+  assert(st.speed > 0 && Number.isFinite(st.speed), "the speed is positive");
   const v = st.speed;
   input("speedNumber").value = v.toFixed(2);
+  assert(input("speedNumber").value === v.toFixed(2), "the number box shows the speed");
   $("speedEntryStatus").textContent = "";
   $("speedOut").textContent = `${fmt(v, 2)} m/s = ${fmt(v / KNOT_MS, 1)} kt`;
   const on = Math.abs(v - V_C) < 0.005;
   const sc = $("specCheck");
+  assert(sc.isConnected, "the spec note exists");
   sc.className = "hint " + (on ? "ok" : "off");
   sc.innerHTML = on ? "On spec: 4 lb at V<sub>C</sub> = 350 KCAS, sea level. 14 CFR 25.571(e)(1)." : `Off spec: the rule asks for V<sub>C</sub> = ${fmt(V_C, 2)} m/s. <button type="button" id="snap" class="snap">Snap to V<sub>C</sub></button>. Science continues anyway.`;
   const snap = document.getElementById("snap");
@@ -1690,6 +2168,8 @@ function showSpeed() {
     };
 }
 function buildPresets() {
+  assert(PRESETS.length > 0, "there is a preset to build");
+  assert(st.preset >= 0 && st.preset < PRESETS.length, "the chosen preset exists");
   $("presets").innerHTML = PRESETS.map((p, i) => `
     <label class="preset"><input type="radio" name="preset" value="${i}" ${i === st.preset ? "checked" : ""}>
       <b>${p.name}</b> · ${fmt(p.spacing * 1000, 1)} mm bird, ${p.cells} skin cells
@@ -1700,93 +2180,40 @@ function buildPresets() {
       preview();
     };
   }
+  assert(document.querySelectorAll("#presets input").length === PRESETS.length, "there is an input per preset");
 }
 function preview() {
+  assert(PRESETS.length > 0, "there is a preset to show");
   setupRun(PANEL);
+  assert(st.scene !== null, "set-up built a scene");
+  assert(st.mode === PANEL, "the preview is a panel");
   st.phase = "idle";
   $("runStatus").textContent = "";
   $("verdict").hidden = true;
   $("banner").textContent = "Goose loaded. Goose is unaware. Press Fire the goose.";
+  assert(st.phase === "idle", "the page is idle after a preview");
 }
-input("speed").value = String(V_C);
-for (const attr of ["min", "max", "step"])
-  input("speedNumber")[attr] = input("speed")[attr];
-input("speedNumber").onchange = () => {
-  const entry = input("speedNumber");
-  if (!entry.checkValidity()) {
-    entry.value = st.speed.toFixed(2);
-    $("speedEntryStatus").textContent = `Enter a speed from ${entry.min} to ${entry.max} m/s in steps of ${entry.step} m/s. The control kept the previous speed.`;
-    return;
-  }
-  st.speed = entry.valueAsNumber;
-  input("speed").value = String(st.speed);
-  showSpeed();
-  if (st.phase === "idle")
-    preview();
-};
-input("speed").oninput = () => {
-  st.speed = Number(input("speed").value);
-  showSpeed();
-};
-input("speed").onchange = () => {
-  if (st.phase === "idle")
-    preview();
-};
 function showSkin() {
+  assert(st.tSkin > 0 && st.tSkin < 0.01, "the skin thickness is in metres");
   const t = st.tSkin * 1000;
   $("skinOut").textContent = `${fmt(t, 1)} mm = ${fmt(t / 25.4, 3)} in`;
+  assert($("skinOut").textContent !== "", "the skin thickness is shown");
 }
-input("skin").value = String(T_SKIN * 1000);
-input("skin").oninput = () => {
-  st.tSkin = Number(input("skin").value) / 1000;
-  showSkin();
-};
-input("skin").onchange = () => {
-  if (st.phase === "idle")
-    preview();
-};
-button("fire").onclick = fire;
-button("stop").onclick = stopRun;
-document.addEventListener("keydown", (e) => {
-  if (e.key !== "Escape" || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || button("stop").disabled)
-    return;
-  e.preventDefault();
-  stopRun();
-});
-button("wilbeck").onclick = wallCheck;
-button("gif").onclick = () => {
-  exportGif();
-};
 function setPressed(b, on) {
+  assert(b.isConnected, "the toggle is in the page");
   b.setAttribute("aria-pressed", String(on));
   b.dataset["active"] = String(on);
+  assert(b.getAttribute("aria-pressed") === b.dataset["active"], "the toggle states agree");
 }
-button("mute").onclick = () => {
-  st.muted = !st.muted;
-  try {
-    localStorage.setItem(MUTED_KEY, st.muted ? "1" : "0");
-  } catch {
-    showMute();
-  }
-  showMute();
-};
 function showMute() {
+  assert($("mute").isConnected, "the mute button exists");
   setPressed($("mute"), st.muted);
   $("mute").textContent = st.muted ? "\uD83D\uDD07 Honks off" : "\uD83D\uDD0A Honks on";
+  assert($("mute").textContent !== "", "the mute button has a label");
 }
-button("btnCostume").onclick = () => {
-  st.costume = !st.costume;
-  setPressed($("btnCostume"), st.costume);
-  legend();
-};
 var drag = null;
-button("btnPov").onclick = () => {
-  drag = null;
-  st.pov = !st.pov;
-  setPressed($("btnPov"), st.pov);
-  showZoom();
-};
 function resetCamera() {
+  assert(canvas.isConnected, "the view canvas is in the page");
   drag = null;
   st.yaw = DEFAULT_YAW;
   st.pitch = DEFAULT_PITCH;
@@ -1794,37 +2221,131 @@ function resetCamera() {
   st.pov = false;
   setPressed($("btnPov"), false);
   showZoom();
+  assert(st.dist === DEFAULT_DIST && st.pitch === DEFAULT_PITCH && st.yaw === DEFAULT_YAW, "the camera is back at its default");
+  assert(!st.pov && drag === null, "the camera is outside the goose and not dragged");
 }
-button("btnReset").onclick = resetCamera;
-button("btnZoomIn").onclick = () => zoom(1 / 1.2);
-button("btnZoomOut").onclick = () => zoom(1.2);
 function showZoom() {
+  assert(st.dist >= DIST_MIN && st.dist <= DIST_MAX, "the camera distance is in range");
   const focused = document.activeElement;
   const zoomIn = button("btnZoomIn"), zoomOut = button("btnZoomOut");
+  assert(zoomIn !== zoomOut, "the zoom buttons are different");
   canvas.style.touchAction = st.pov ? "pan-y pinch-zoom" : "pinch-zoom";
   zoomIn.disabled = st.pov || st.dist <= DIST_MIN;
   zoomOut.disabled = st.pov || st.dist >= DIST_MAX;
+  assert(canvas.style.touchAction.length > 0, "the canvas has a touch action");
   if ((focused === zoomIn || focused === zoomOut) && focused.disabled) {
     canvas.focus({ preventScroll: true });
   }
+  assert(zoomIn.disabled === (st.pov || st.dist <= DIST_MIN), "zoom in follows the limit");
+  assert(zoomOut.disabled === (st.pov || st.dist >= DIST_MAX), "zoom out follows the limit");
 }
 function zoom(factor) {
+  assert(factor > 0, "a zoom factor is positive");
   if (st.pov)
     return;
   st.dist = Math.max(DIST_MIN, Math.min(DIST_MAX, st.dist * factor));
   showZoom();
+  assert(st.dist >= DIST_MIN && st.dist <= DIST_MAX, "the camera distance stays in range");
 }
-window.addEventListener("blur", () => {
-  drag = null;
-});
 function rotate(dx, dy) {
+  assert(Number.isFinite(dx + dy), "a rotation is finite");
   if (st.pov)
     return;
   st.yaw += dx;
   st.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, st.pitch + dy));
+  assert(Math.abs(st.pitch) <= PITCH_LIMIT, "the camera pitch stays in range");
+}
+function onSpeedEntry() {
+  assert(input("speedNumber").isConnected, "the speed box exists");
+  const entry = input("speedNumber");
+  if (!entry.checkValidity()) {
+    entry.value = st.speed.toFixed(2);
+    $("speedEntryStatus").textContent = `Enter a speed from ${entry.min} to ${entry.max} m/s in steps of ${entry.step} m/s. The control kept the previous speed.`;
+    return;
+  }
+  st.speed = entry.valueAsNumber;
+  assert(st.speed >= Number(entry.min) && st.speed <= Number(entry.max), "the entered speed is in range");
+  assert(st.speed > 0, "the speed is positive");
+  input("speed").value = String(st.speed);
+  showSpeed();
+  if (st.phase === "idle")
+    preview();
+}
+function wireSliders() {
+  assert(input("speed").isConnected && input("skin").isConnected, "the sliders exist");
+  input("speed").value = String(V_C);
+  for (const attr of ["min", "max", "step"])
+    input("speedNumber")[attr] = input("speed")[attr];
+  input("speedNumber").onchange = onSpeedEntry;
+  input("speed").oninput = () => {
+    st.speed = Number(input("speed").value);
+    showSpeed();
+  };
+  input("speed").onchange = () => {
+    if (st.phase === "idle")
+      preview();
+  };
+  input("skin").value = String(T_SKIN * 1000);
+  input("skin").oninput = () => {
+    st.tSkin = Number(input("skin").value) / 1000;
+    showSkin();
+  };
+  input("skin").onchange = () => {
+    if (st.phase === "idle")
+      preview();
+  };
+  assert(input("speedNumber").max === input("speed").max, "the number box has the slider range");
+  assert(typeof input("skin").oninput === "function", "the skin slider has a handler");
+}
+function wireButtons() {
+  assert(button("fire").isConnected && button("stop").isConnected, "the run buttons exist");
+  button("fire").onclick = fire;
+  button("stop").onclick = stopRun;
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || button("stop").disabled)
+      return;
+    e.preventDefault();
+    assert(e.key === "Escape", "only Escape stops a run");
+    stopRun();
+  });
+  button("wilbeck").onclick = wallCheck;
+  button("gif").onclick = () => {
+    exportGif();
+  };
+  button("mute").onclick = () => {
+    st.muted = !st.muted;
+    assert(typeof st.muted === "boolean", "the mute flag stays a boolean");
+    try {
+      localStorage.setItem(MUTED_KEY, st.muted ? "1" : "0");
+    } catch {
+      showMute();
+    }
+    showMute();
+  };
+  button("btnCostume").onclick = () => {
+    st.costume = !st.costume;
+    assert(typeof st.costume === "boolean", "the costume flag stays a boolean");
+    setPressed($("btnCostume"), st.costume);
+    legend();
+  };
+  button("btnPov").onclick = () => {
+    drag = null;
+    st.pov = !st.pov;
+    setPressed($("btnPov"), st.pov);
+    showZoom();
+  };
+  button("btnReset").onclick = resetCamera;
+  button("btnZoomIn").onclick = () => zoom(1 / 1.2);
+  button("btnZoomOut").onclick = () => zoom(1.2);
+  window.addEventListener("blur", () => {
+    drag = null;
+  });
+  assert(typeof button("fire").onclick === "function", "the fire button has a handler");
+  assert(typeof button("btnZoomOut").onclick === "function", "the zoom out button has a handler");
 }
 var TURNS = { ArrowLeft: [-0.1, 0], ArrowRight: [0.1, 0], ArrowUp: [0, -0.1], ArrowDown: [0, 0.1] };
-canvas.addEventListener("keydown", (e) => {
+function onCanvasKey(e) {
+  assert(typeof e.key === "string", "a key event names its key");
   if (e.altKey || e.ctrlKey || e.metaKey)
     return;
   if (e.key === "Home") {
@@ -1842,44 +2363,62 @@ canvas.addEventListener("keydown", (e) => {
   const turn = TURNS[e.key];
   if (!turn)
     return;
+  assert(turn.length === 2, "a turn has a yaw and a pitch step");
   e.preventDefault();
   rotate(turn[0], turn[1]);
-});
-canvas.addEventListener("pointerdown", (e) => {
-  if (e.button !== 0 || drag || st.pov)
-    return;
-  drag = { pointerId: e.pointerId, x: e.clientX, y: e.clientY };
-  canvas.setPointerCapture(e.pointerId);
-});
-canvas.addEventListener("pointermove", (e) => {
-  if (!drag || drag.pointerId !== e.pointerId || st.pov)
-    return;
-  rotate((e.clientX - drag.x) * 0.008, (e.clientY - drag.y) * 0.008);
-  drag.x = e.clientX;
-  drag.y = e.clientY;
-});
-for (const event of ["pointerup", "pointercancel", "lostpointercapture"]) {
-  canvas.addEventListener(event, (e) => {
-    if (drag?.pointerId === e.pointerId)
-      drag = null;
-  });
 }
-var WHEEL_LINE_PX = 16;
-canvas.addEventListener("wheel", (e) => {
-  if (st.pov || e.ctrlKey || e.metaKey)
-    return;
-  e.preventDefault();
-  const unit = e.deltaMode === 1 ? WHEEL_LINE_PX : e.deltaMode === 2 ? canvas.clientHeight : 1;
-  zoom(Math.exp(e.deltaY * unit * 0.001));
-}, { passive: false });
-loadCode().catch(() => {
-  $("codeState").textContent = "The source code could not load. The solver can still run. Reload the page to try again.";
-});
-showSpeed();
-showSkin();
-showMute();
-buildPresets();
-resize();
-preview();
-setBusy(false);
-requestAnimationFrame(frame);
+function wireCanvas() {
+  assert(canvas.isConnected, "the view canvas is in the page");
+  assert(drag === null, "no drag is in progress at start");
+  canvas.addEventListener("keydown", onCanvasKey);
+  canvas.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || drag || st.pov)
+      return;
+    drag = { pointerId: e.pointerId, x: e.clientX, y: e.clientY };
+    assert(drag.pointerId === e.pointerId, "the drag follows the pointer");
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!drag || drag.pointerId !== e.pointerId || st.pov)
+      return;
+    rotate((e.clientX - drag.x) * 0.008, (e.clientY - drag.y) * 0.008);
+    assert(drag.pointerId === e.pointerId, "the drag follows the pointer");
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+  });
+  for (const event of ["pointerup", "pointercancel", "lostpointercapture"]) {
+    canvas.addEventListener(event, (e) => {
+      if (drag?.pointerId === e.pointerId)
+        drag = null;
+    });
+  }
+  canvas.addEventListener("wheel", (e) => {
+    if (st.pov || e.ctrlKey || e.metaKey)
+      return;
+    e.preventDefault();
+    const unit = e.deltaMode === 1 ? WHEEL_LINE_PX : e.deltaMode === 2 ? canvas.clientHeight : 1;
+    assert(unit > 0, "a wheel unit is positive");
+    zoom(Math.exp(e.deltaY * unit * 0.001));
+  }, { passive: false });
+  assert(typeof canvas.setPointerCapture === "function", "the canvas can capture the pointer");
+}
+function main() {
+  assert(PRESETS.length > 0, "there is a preset to start with");
+  wireSliders();
+  wireButtons();
+  wireCanvas();
+  loadCode().catch(() => {
+    $("codeState").textContent = "The source code could not load. The solver can still run. Reload the page to try again.";
+  });
+  showSpeed();
+  showSkin();
+  showMute();
+  buildPresets();
+  resize();
+  preview();
+  setBusy(false);
+  assert(st.phase === "idle", "the page starts idle");
+  assert(st.scene !== null, "the page starts with a scene");
+  requestAnimationFrame(frame);
+}
+main();
