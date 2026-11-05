@@ -484,7 +484,7 @@ class ByteWriter {
   }
   str(s) {
     assert(s.length > 0, "a string has characters");
-    assert(/^[\x20-\x7e]*$/.test(s), "a string is printable ASCII");
+    assert(/^[\u0020-\u007E]*$/.test(s), "a string is printable ASCII");
     for (let i = 0;i < s.length; i++)
       this.byte(s.charCodeAt(i));
   }
@@ -617,7 +617,8 @@ function fmt(x, d = 1) {
 function sign(x, d = 1) {
   assert(Number.isInteger(d), "the digit count is a whole number");
   assert(d >= 0 && d <= 20, "the digit count is 0 to 20");
-  const text = (x > 0 ? "+" : x < 0 ? "−" : "") + fmt(Math.abs(x), d);
+  const sign = x > 0 ? "+" : "";
+  const text = (x < 0 ? "−" : sign) + fmt(Math.abs(x), d);
   assert(text.length > 0, "the signed number has text");
   return text;
 }
@@ -1020,7 +1021,7 @@ function toLab(hex) {
   assert(/^#[0-9a-f]{6}$/i.test(hex), "a colour is written #rrggbb");
   assert(hex.length === 7, "a colour has seven characters");
   const lin = (k) => {
-    const v = parseInt(hex.slice(k, k + 2), 16) / 255;
+    const v = Number.parseInt(hex.slice(k, k + 2), 16) / 255;
     return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
   };
   const l = [lin(1), lin(3), lin(5)];
@@ -1057,7 +1058,7 @@ function fromLab(c) {
 function ramp(stops) {
   assert(stops.length >= 2, "a ramp needs two stops");
   assert(stops.length < 256, "a ramp has fewer stops than entries");
-  const lab = stops.map(toLab), out = [];
+  const lab = stops.map((stop) => toLab(stop)), out = [];
   assert(lab.length === stops.length, "every stop has a Lab colour");
   for (let i = 0;i < 256; i++) {
     const x = i / 255 * (lab.length - 1), k = Math.min(lab.length - 2, Math.floor(x)), f = x - k;
@@ -1113,14 +1114,29 @@ function cssRamp(name) {
   assert(stops.join("").length > 0, "the gradient stops have text");
   return `linear-gradient(90deg, ${stops.join(",")})`;
 }
-function render(scene, offsetZ, flap) {
-  assert(Number.isFinite(offsetZ + flap), "the approach offset and the flap are finite");
-  assert(W > 0 && H > 0, "the canvas has a size");
-  setCamera();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, W, H);
-  const nn = scene.nodes.length / 3, np = scene.parts.length / 3, ne = scene.elems.length / 4;
-  assert(Number.isInteger(nn) && Number.isInteger(np) && Number.isInteger(ne), "the counts are whole numbers");
+function elementDepth(scene, e) {
+  assert(e >= 0 && e < scene.strain.length, "the element exists");
+  assert(sNodes.length >= scene.nodes.length, "every node was projected");
+  if (at(scene.strain, e) < 0)
+    return -1;
+  const a = at(scene.elems, 4 * e), b = at(scene.elems, 4 * e + 1), c = at(scene.elems, 4 * e + 2), d = at(scene.elems, 4 * e + 3);
+  return 0.25 * (at(sNodes, 3 * a + 2) + at(sNodes, 3 * b + 2) + at(sNodes, 3 * c + 2) + at(sNodes, 3 * d + 2));
+}
+function drawParticle(scene, i, costume, pr) {
+  assert(i >= 0 && 3 * i + 2 < sParts.length, "the particle was projected");
+  assert(pr > 0, "the particle radius is positive");
+  const z = at(sParts, 3 * i + 2);
+  if (z <= MIN_DEPTH)
+    return;
+  ctx.fillStyle = costume ? at(scene.skin, i) : pressureColour(at(scene.press, i));
+  ctx.beginPath();
+  ctx.arc(at(sParts, 3 * i), at(sParts, 3 * i + 1), Math.max(0.8, pr / z), 0, 2 * Math.PI);
+  ctx.fill();
+}
+function projectScene(scene, offsetZ) {
+  const nn = scene.nodes.length / 3, np = scene.parts.length / 3;
+  assert(Number.isInteger(nn) && Number.isInteger(np), "the counts are whole numbers");
+  assert(Number.isFinite(offsetZ), "the approach offset is finite");
   if (sNodes.length < 3 * nn)
     sNodes = new Float32Array(3 * nn);
   if (sParts.length < 3 * np)
@@ -1129,6 +1145,15 @@ function render(scene, offsetZ, flap) {
     proj(at(scene.nodes, 3 * i), at(scene.nodes, 3 * i + 1), at(scene.nodes, 3 * i + 2), sNodes, 3 * i);
   for (let i = 0;i < np; i++)
     proj(at(scene.parts, 3 * i), at(scene.parts, 3 * i + 1), at(scene.parts, 3 * i + 2) + offsetZ, sParts, 3 * i);
+}
+function render(scene, offsetZ, flap) {
+  assert(Number.isFinite(offsetZ + flap), "the approach offset and the flap are finite");
+  assert(W > 0 && H > 0, "the canvas has a size");
+  setCamera();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const nn = scene.nodes.length / 3, np = scene.parts.length / 3, ne = scene.elems.length / 4;
+  projectScene(scene, offsetZ);
   if (st.mode === RIGID_WALL)
     drawWall();
   const costume = st.costume && st.mode === PANEL;
@@ -1138,10 +1163,8 @@ function render(scene, offsetZ, flap) {
   const n = ne + np + decor.length;
   assert(n >= 0 && decor.length >= 0, "there is a count of items to sort");
   grow(n);
-  for (let e = 0;e < ne; e++) {
-    const a = at(scene.elems, 4 * e), b = at(scene.elems, 4 * e + 1), c = at(scene.elems, 4 * e + 2), d = at(scene.elems, 4 * e + 3);
-    keys[e] = at(scene.strain, e) < 0 ? -1 : 0.25 * (at(sNodes, 3 * a + 2) + at(sNodes, 3 * b + 2) + at(sNodes, 3 * c + 2) + at(sNodes, 3 * d + 2));
-  }
+  for (let e = 0;e < ne; e++)
+    keys[e] = elementDepth(scene, e);
   for (let i = 0;i < np; i++)
     keys[ne + i] = at(sParts, 3 * i + 2);
   for (let k = 0;k < decor.length; k++)
@@ -1154,15 +1177,9 @@ function render(scene, offsetZ, flap) {
     const id = at(order, k);
     if (id < ne)
       drawShell(scene, id);
-    else if (id < ne + np) {
-      const i = id - ne, z = at(sParts, 3 * i + 2);
-      if (z <= MIN_DEPTH)
-        continue;
-      ctx.fillStyle = costume ? at(scene.skin, i) : pressureColour(at(scene.press, i));
-      ctx.beginPath();
-      ctx.arc(at(sParts, 3 * i), at(sParts, 3 * i + 1), Math.max(0.8, pr / z), 0, 2 * Math.PI);
-      ctx.fill();
-    } else
+    else if (id < ne + np)
+      drawParticle(scene, id - ne, costume, pr);
+    else
       at(decor, id - ne - np).draw();
   }
   assert(sNodes.length >= 3 * nn && sParts.length >= 3 * np, "every node and particle was projected");
@@ -1517,7 +1534,7 @@ function ticks(max, n) {
   assert(step >= raw, "the step is at least the raw step");
   const out = [];
   for (let v = 0;v <= max + 0.000000001; v += step)
-    out.push(+v.toFixed(6));
+    out.push(Number(v.toFixed(6)));
   assert(out.length >= 1 && out[0] === 0, "the ticks start at zero");
   assert(at(out, out.length - 1) <= max + 0.000001, "the ticks stay within the range");
   return out;
@@ -1577,7 +1594,7 @@ function setBusy(b) {
   button("gif").disabled = b || !st.gif;
   $("fire").textContent = b ? "Goose in flight" : "Fire the goose";
   const runName = st.mode === RIGID_WALL ? "Wall check" : "Panel run";
-  $("runStatus").textContent = b ? `${runName} active. Press Escape or Stop and reset to stop.` : st.phase === "done" ? `${runName} complete. Results appear below.` : "";
+  $("runStatus").textContent = b ? `${runName} active. Press Escape or Stop and reset to stop.` : doneText(runName);
   for (const control of document.querySelectorAll("#presets input, #speed, #speedNumber, #skin"))
     control.disabled = b;
   const snap = document.getElementById("snap");
@@ -2046,9 +2063,29 @@ async function exportGif() {
   }
 }
 var code = { lines: null, step: null, ranges: [], shown: -2, last: 0, scrolled: 0, scrolledK: -1, chips: [] };
+function doneText(runName) {
+  assert(runName.length > 0, "a run has a name");
+  const text = st.phase === "done" ? `${runName} complete. Results appear below.` : "";
+  assert(text.length === 0 || st.phase === "done", "the done text appears only when done");
+  return text;
+}
+function idleCodeState(running) {
+  assert(typeof running === "boolean", "running is a flag");
+  const text = running && eng.gpu ? "On the GPU, the kernels of web/strike.wgsl do all five phases of each step. No line is lit." : "The solver is idle.";
+  assert(text.length > 0, "the code state has text");
+  return text;
+}
+function wheelUnit(deltaMode, clientHeight) {
+  assert(deltaMode >= 0 && deltaMode <= 2, "a wheel delta mode is 0, 1 or 2");
+  const lines = deltaMode === 1 ? WHEEL_LINE_PX : 1;
+  const unit = deltaMode === 2 ? clientHeight : lines;
+  assert(unit >= 0, "a wheel unit is not negative");
+  return unit;
+}
 async function loadCode() {
   assert($("code").isConnected && $("step").isConnected, "the code panes exist");
-  const src = await (await fetch(SOURCE_URL)).text();
+  const response = await fetch(SOURCE_URL);
+  const src = await response.text();
   assert(src.length > 0, "the source file is not empty");
   const lines = src.replace(/\n$/, "").split(`
 `);
@@ -2118,12 +2155,17 @@ function codeView(now) {
     code.scrolled = now;
     code.scrolledK = k;
   }
-  const state = k >= 0 ? `Phase ${k} (${at(PHASES, k).name}) ran last.` : running && eng.gpu ? "On the GPU, the kernels of web/strike.wgsl do all five phases of each step. No line is lit." : "The solver is idle.";
+  const state = k >= 0 ? `Phase ${k} (${at(PHASES, k).name}) ran last.` : idleCodeState(running);
   if ($("codeState").textContent !== state)
     $("codeState").textContent = state;
   if (k === code.shown)
     return;
+  highlightPhase(k);
+  code.shown = k;
+}
+function highlightPhase(k) {
   assert(code.chips.length === PHASES.length, "every phase has a chip");
+  assert(k >= -1 && k < PHASES.length, "the phase is known or none");
   code.chips.forEach((b, i) => {
     b.dataset["active"] = String(i === k);
   });
@@ -2131,16 +2173,16 @@ function codeView(now) {
     l.classList.remove("on");
   for (const l of $("step").querySelectorAll(".on"))
     l.classList.remove("on");
-  if (k >= 0) {
-    const stepPane = must(code.step, "the step pane");
-    for (const [a, b] of at(code.ranges, k))
-      for (let i = a;i <= b; i++)
-        at(code.lines, i).classList.add("on");
-    const [a, b] = at(at(code.ranges, k), 0);
+  if (k < 0)
+    return;
+  const stepPane = must(code.step, "the step pane");
+  const lines = must(code.lines, "the source lines");
+  for (const [a, b] of at(code.ranges, k))
     for (let i = a;i <= b; i++)
-      at(stepPane.lines, i - stepPane.first).classList.add("on");
-  }
-  code.shown = k;
+      at(lines, i).classList.add("on");
+  const [a, b] = at(at(code.ranges, k), 0);
+  for (let i = a;i <= b; i++)
+    at(stepPane.lines, i - stepPane.first).classList.add("on");
 }
 function showSpeed() {
   assert(st.speed > 0 && Number.isFinite(st.speed), "the speed is positive");
@@ -2396,7 +2438,7 @@ function wireCanvas() {
     if (st.pov || e.ctrlKey || e.metaKey)
       return;
     e.preventDefault();
-    const unit = e.deltaMode === 1 ? WHEEL_LINE_PX : e.deltaMode === 2 ? canvas.clientHeight : 1;
+    const unit = wheelUnit(e.deltaMode, canvas.clientHeight);
     assert(unit > 0, "a wheel unit is positive");
     zoom(Math.exp(e.deltaY * unit * 0.001));
   }, { passive: false });

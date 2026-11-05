@@ -54,7 +54,7 @@ export default function draw(F, L) {
     }
     let x = gpuX;
     for (const k of kernels) {
-      const t = L.text(root, x + mm(2), y + cardH / 2, k.replace(/_/g, '\\_'), { size: text.small, valign: 'middle' });
+      const t = L.text(root, x + mm(2), y + cardH / 2, k.replace(/_/g, String.raw`\_`), { size: text.small, valign: 'middle' });
       const w = t.getBBox().width + mm(4);
       assert(w > mm(4), 'a kernel name has a width');
       assert(!(k in chips), 'a kernel appears once');

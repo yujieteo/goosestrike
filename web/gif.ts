@@ -188,7 +188,7 @@ class ByteWriter {
   }
   str(s: string): void {
     assert(s.length > 0, "a string has characters");
-    assert(/^[\x20-\x7e]*$/.test(s), "a string is printable ASCII");
+    assert(/^[\u0020-\u007E]*$/.test(s), "a string is printable ASCII");
     for (let i = 0; i < s.length; i++) this.byte(s.charCodeAt(i));
   }
   result(): Uint8Array {

@@ -73,7 +73,7 @@ async function matchesCpu(): Promise<void> {
     if (at(gs, e) >= 0 && at(cs, e) >= 0) ds = Math.max(ds, Math.abs(at(gs, e) - at(cs, e)));
     else for (let k = 0; k < 4; k++) if (at(el, 4 * e + k) >= 0) eroded[at(el, 4 * e + k)] = 1;
   }
-  for (let i = 0; i < cn.length; i++) if (!at(eroded, (i / 3) | 0)) dx = Math.max(dx, Math.abs(at(gn, i) - at(cn, i)));
+  for (let i = 0; i < cn.length; i++) if (!at(eroded, Math.trunc(i / 3))) dx = Math.max(dx, Math.abs(at(gn, i) - at(cn, i)));
   expect(Math.max(...gs), "the GPU strain is drawn").toBeGreaterThan(0.5 * cpu.maxPlasticStrain());
   expect(ds, `element strain differs by ${ds}`).toBeLessThan(0.01);
   expect(dx, `node positions differ by ${dx * 1e3} mm`).toBeLessThan(5e-3);
