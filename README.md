@@ -307,6 +307,8 @@ The `bundle` step needs the Bun version in `packageManager` in `package.json` (1
 - `bundle`: `web/app.js` is the bundle of `web/app.ts`. The step fails when Bun is not the version in `packageManager` in `package.json`, because a different Bun can write a different bundle,
 - `budget`: the gzipped first load of `index.html` is under 120 KB (86.9 KB with the CPU solver, 116.2 KB with the GPU solver),
 - `sanitizer`: `test/sanitize/main.c` runs the CPU solver in `gen/strike.c` with `-fsanitize=undefined,address -fno-sanitize-recover=all`,
+- `c-warnings`: each `gen/*.c` compiles with `-Wall -Wextra -Wpedantic -Werror`, with five kinds of warning off that Goose's output has by design (unused constant, function, parameter and variable, and unterminated string initialisation). The list is `GENERATED_C_OFF` in `scripts/config.ts`,
+- `analyzer`: `clang --analyze` on each `gen/*.c`, with the dead-store check off (Goose's output has many of them). The two runtime findings that Goose's C has in every file are in `ANALYZER_KNOWN` in `scripts/config.ts`. A new finding fails the step, and a finding that is gone must be removed from that list. The two `unix.Stream` findings are in `ANALYZER_VERSION_DEPENDENT`: clang 21 reports them and CI's clang 18 does not, so they are allowed but not required,
 - `tests`: `bun test`, with `GOOSESTRIKE_CAPTURE` set so that the tests write their inputs to a cache outside the repository,
 - `replay`: process replay. It runs the captured inputs (solver runs and GIF encodes) on `origin/main` and on this tree, and fails on any difference in the output.
   Use `bun run check replay --accept` to accept a difference that the change must make. It stops early when more than 20 % of the outputs differ. CI does not run it.
