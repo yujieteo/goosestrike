@@ -10,7 +10,7 @@ const read = (path: string): Buffer => readFileSync(new URL(`../${path}`, import
 const SUMMED_FILES = ["sim/strike.goose", "gen/strike.c", "gen/strike.h", "web/strike.wasm",
   "sim/gpu.goose", "sim/gpu.c", "gen/gpu.c", "gen/gpu.h", "web/strike-gpu.wasm"];
 
-test("gen/ and the wasm files are built from the current sim/", () => {
+function generatedFilesAreCurrent(): void {
   const sums = read("gen/sha256sums").toString("utf8").trim().split("\n").map((l) => l.split(/\s+/));
   expect(sums.map((l) => l[1])).toEqual(SUMMED_FILES);
   for (const [sum, path] of sums) {
@@ -18,7 +18,9 @@ test("gen/ and the wasm files are built from the current sim/", () => {
     expect(createHash("sha256").update(read(path)).digest("hex"), `${path}: run ./build.sh`).toBe(sum);
   }
   expect(read("sim/strike.goose").equals(read("web/strike.goose")), "web/strike.goose: run ./build.sh").toBe(true);
-});
+}
+
+test("gen/ and the wasm files are built from the current sim/", generatedFilesAreCurrent);
 
 test("the load case is 4 lb at 350 kt", () => {
   expect(BIRD_MASS).toBe(4 * 0.45359237);
@@ -32,7 +34,7 @@ test("the Wilbeck reference pressures", () => {
   expect(Math.abs(stagnation(V_C) / 1e6 - 15.40)).toBeLessThan(0.01);
 });
 
-test("rigid wall: the impulse is m v and the energy balance closes", () => {
+function rigidWallBalances(): void {
   const np = eng.setup(RIGID_WALL, 8, 0.009, V_C);
   expect(eng.birdV()).toBe(V_C);
   expect(Math.abs(np * eng.particleMass() - BIRD_MASS), "the particles weigh 4 lb").toBeLessThan(1e-12);
@@ -44,9 +46,11 @@ test("rigid wall: the impulse is m v and the energy balance closes", () => {
   expect(Math.abs(imp - 1), `impulse / (m v) = ${imp}`).toBeLessThan(0.02);
   const bal = (eng.birdKE() + eng.birdWork()) / ke0;
   expect(Math.abs(bal - 1), `energy balance = ${bal}`).toBeLessThan(0.01);
-});
+}
 
-test("panel: stable, energy balance within 1 %, and set-up resets the state", () => {
+test("rigid wall: the impulse is m v and the energy balance closes", rigidWallBalances);
+
+function panelIsStable(): void {
   const run = () => {
     capture({ kind: "solver", mode: PANEL, cells: 56, spacing: 0.009, speed: V_C, tEnd: 5e-4, stepping: "advance", batch: 1 });
     eng.setup(PANEL, 56, 0.009, V_C);
@@ -65,7 +69,9 @@ test("panel: stable, energy balance within 1 %, and set-up resets the state", ()
   const b = run();
   expect(b.defl).toBe(a.defl);
   expect(b.steps).toBe(a.steps);
-});
+}
+
+test("panel: stable, energy balance within 1 %, and set-up resets the state", panelIsStable);
 
 test("the phases one at a time give the same result as whole steps", () => {
   const run = (phased: boolean) => {
