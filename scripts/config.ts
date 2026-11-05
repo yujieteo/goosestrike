@@ -27,3 +27,13 @@ export const REPLAY = {
   baseRef: "origin/main",
   largeChangeFraction: 0.2,
 } as const;
+
+export const JPL_GOOSE_GLOBS = ["sim/**/*.goose"];
+export const JPL_MAX_LINES = 60;
+export const JPL_LONG_FUNCTIONS: Record<string, number> = {
+  "sim/gpu.goose:gpu_setup": 122,
+  "sim/strike.goose:build_panel": 70,
+  "sim/strike.goose:shell_element": 130,
+  "sim/strike.goose:contact": 86,
+  "web/app.ts:decorations": 74,
+};

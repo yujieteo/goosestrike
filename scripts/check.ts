@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { BUNDLE, NONDETERMINISTIC_BANNED_IN, NONDETERMINISTIC_CALLS } from "./config.ts";
 import { checkComments, checkNondeterminism } from "./comments.ts";
 import { buildBundle } from "./bundle.ts";
+import { checkJpl } from "./jpl.ts";
 import { checkBudget } from "./budget.ts";
 import { cacheDir, replay } from "./replay.ts";
 
@@ -45,6 +46,7 @@ const steps: [string, () => string[] | Promise<string[]>][] = [
   ["typecheck", () => run(["bunx", "tsc", "--noEmit"])],
   ["comments", () => checkComments(root)],
   ["nondeterminism", () => checkNondeterminism(root, NONDETERMINISTIC_BANNED_IN, NONDETERMINISTIC_CALLS)],
+  ["jpl", () => checkJpl(root)],
   ["dead-code", () => run(["bunx", "knip"])],
   ["bundle", bundleIsFresh],
   ["budget", () => {
