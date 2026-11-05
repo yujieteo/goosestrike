@@ -90,10 +90,16 @@ var pending: i64 = 0;       // runs not read back (0, 1 or 2)
 var read_first: i64[2];     // the history entries in each read-back copy
 var read_count: i64[2];
 
-fn groups(n: i64) -> i64 { (n + WG - 1) / WG }
+fn groups(n: i64) -> i64 {
+    assert(n >= 0);
+    assert(WG > 0);
+    return (n + WG - 1) / WG;
+}
 
 // Compiles the kernels. wgsl: the text of web/strike.wgsl.
 export fn gpu_init(wgsl: const u8[:]) -> i32 {
+    assert(wgsl.len > 0);
+    assert(NK <= 16);
     if gw_init(wgsl) == 0 { return 0; }
     kpipe[KN_CLEAR] = gw_pipeline("clear");
     kpipe[KN_BIN_P] = gw_pipeline("bin_particles");
@@ -109,13 +115,23 @@ export fn gpu_init(wgsl: const u8[:]) -> i32 {
     return 1;
 }
 
-fn make(b: i64, bytes: i64, kind: i32) { gbuf[b] = gw_buffer(bytes, kind); }
+fn make(b: i64, bytes: i64, kind: i32) {
+    assert(b >= 0 && b < NB);
+    assert(bytes >= 0);
+    gbuf[b] = gw_buffer(bytes, kind);
+}
 
-fn upload(b: i64, floats: i64) { gw_write(gbuf[b], 0, bytes_of(up[0..floats])); }
+fn upload(b: i64, floats: i64) {
+    assert(b >= 0 && b < NB);
+    assert(floats >= 0 && floats <= MAXP * 8);
+    gw_write(gbuf[b], 0, bytes_of(up[0..floats]));
+}
 
 // A bind group with the buffers that kernel k uses (the bindings it
 // declares in web/strike.wgsl).
 fn bind(k: i64, bufs: const i64[:]) {
+    assert(k >= 0 && k < NK);
+    assert(bufs.len <= 16);
     var pairs: i32[32];
     for i in 0..bufs.len {
         pairs[2 * i] = bufs[i] as i32;
@@ -124,18 +140,16 @@ fn bind(k: i64, bufs: const i64[:]) {
     kbind[k] = gw_bind(kpipe[k], pairs[0..2 * bufs.len]);
 }
 
-fn rbuf_floats() -> i64 { 4 * np + 3 * nn + ne }
+fn rbuf_floats() -> i64 {
+    assert(np >= 0 && nn >= 0);
+    assert(ne >= 0);
+    return 4 * np + 3 * nn + ne;
+}
 
-// Sets up a run: the CPU set-up of strike.goose (set_skin, then setup), then
-// the state in GPU buffers, and the time step before the first step.
-// Returns the particle count, as setup. The render data and the energies are
-// those of the set-up until the first gpu_poll.
-export fn gpu_setup(m: i32, cells: i32, spacing: f64, speed: f64) -> i32 {
-    let n = setup(m, cells, spacing, speed);
-    gw_reset();
-    let gp = groups(np);
-    let gn = groups(nn);
-    let ge = groups(ne);
+// Makes the GPU buffers for the sizes np, nn and ne of the set-up.
+fn gpu_make_buffers(gp: i64, gn: i64, ge: i64) {
+    assert(np > 0 && nn >= 0 && ne >= 0);
+    assert(gp > 0 && gn >= 0 && ge >= 0);
     make(B_U, 4 * NU, 1);
     make(B_S, 4 * NS, 0);
     make(B_PART, 32 * np, 0);
@@ -158,8 +172,12 @@ export fn gpu_setup(m: i32, cells: i32, spacing: f64, speed: f64) -> i32 {
     make(B_HIST, 16 * HIST_CAP, 0);
     make(B_RBUF, 4 * rbuf_floats(), 0);
     for c in 0..2 { make(B_READ + c, 4 * NS + 16 * RUN_MAX + 4 * rbuf_floats(), 2); }
+}
 
-    // The new buffers are zero. Only the non-zero state is uploaded.
+// Uploads the non-zero state of the particles, nodes and elements.
+fn gpu_upload_state() {
+    assert(8 * np <= 8 * MAXP && 8 * nn <= 8 * MAXN);
+    assert(4 * ne <= 4 * MAXE);
     for i in 0..np {
         for k in 0..3 {
             up[8 * i + k] = px[3 * i + k] as f32;
@@ -201,9 +219,15 @@ export fn gpu_setup(m: i32, cells: i32, spacing: f64, speed: f64) -> i32 {
         upi[nn + 1 + cur[i]] = c as i32;
         cur[i] += 1;
     }
+    assert(upi[nn] == 0 || cur[nn - 1] <= upi[nn]);
     gw_write(gbuf[B_ADJ], 0, bytes_of(upi[0..nn + 1 + 4 * ne]));
+}
 
-    // the parameters: see struct Params in web/strike.wgsl
+// The parameters and the starting state, see struct Params and struct
+// State in web/strike.wgsl.
+fn gpu_write_params(gp: i64, gn: i64) {
+    assert(gp > 0 && gn >= 0);
+    assert(NU <= 52 && NS <= 24);
     gu[0] = mode; gu[1] = np; gu[2] = nn; gu[3] = ne;
     gu[4] = pm as f32; gu[5] = ph as f32; gu[6] = prad as f32; gu[7] = sensor_r as f32;
     gu[8] = 3.0e38;   // t_end: gpu_run sets it
@@ -227,7 +251,12 @@ export fn gpu_setup(m: i32, cells: i32, spacing: f64, speed: f64) -> i32 {
     gs[17] = 1.0;   // running
     gs[19] = get_bird_ke() as f32;
     gw_write(gbuf[B_S], 0, bytes_of(gs));
+}
 
+// A bind group for each kernel.
+fn gpu_bind_all() {
+    assert(kpipe[KN_RENDER] != 0 || kpipe[KN_CLEAR] != 0);
+    assert(gbuf[B_RBUF] != gbuf[B_U]);
     bind(KN_CLEAR, [B_U, B_PHEAD, B_NFC, B_EHEAD]);
     bind(KN_BIN_P, [B_U, B_S, B_PART, B_PBIN, B_PHEAD]);
     bind(KN_SPH, [B_U, B_S, B_PART, B_PACC, B_PBIN, B_PHEAD]);
@@ -239,7 +268,22 @@ export fn gpu_setup(m: i32, cells: i32, spacing: f64, speed: f64) -> i32 {
     bind(KN_GEOM, [B_U, B_NX, B_EINFO, B_ESTATE, B_EFLAG, B_EBIN, B_RED]);
     bind(KN_REDUCE, [B_U, B_S, B_RED, B_HIST]);
     bind(KN_RENDER, [B_U, B_PART, B_NX, B_ESTATE, B_EFLAG, B_RBUF]);
+}
 
+// Sets up a run: the CPU set-up of strike.goose (set_skin, then setup), then
+// the state in GPU buffers, and the time step before the first step.
+// Returns the particle count, as setup. The render data and the energies are
+// those of the set-up until the first gpu_poll.
+export fn gpu_setup(m: i32, cells: i32, spacing: f64, speed: f64) -> i32 {
+    let n = setup(m, cells, spacing, speed);
+    gw_reset();
+    let gp = groups(np);
+    let gn = groups(nn);
+    let ge = groups(ne);
+    gpu_make_buffers(gp, gn, ge);
+    gpu_upload_state();
+    gpu_write_params(gp, gn);
+    gpu_bind_all();
     // before the first step: the element geometry and the first time step
     if mode == 0 { dispatch(KN_GEOM, ge); }
     dispatch(KN_INT_P, gp);
@@ -253,11 +297,17 @@ export fn gpu_setup(m: i32, cells: i32, spacing: f64, speed: f64) -> i32 {
     return n;
 }
 
-fn dispatch(k: i64, n: i64) { gw_dispatch(kpipe[k], kbind[k], n); }
+fn dispatch(k: i64, n: i64) {
+    assert(k >= 0 && k < NK);
+    assert(n >= 0);
+    gw_dispatch(kpipe[k], kbind[k], n);
+}
 
 // One time step: run_phase 0 to 4 of strike.goose. The time step of
 // phase 0 comes from reduce at the end of the step before.
 fn step_kernels() {
+    assert(np > 0);
+    assert(mode == 0 || mode == 1);
     let gp = groups(np);
     let ge = groups(ne);
     dispatch(KN_CLEAR, groups(max(NHASH, 3 * nn)));
@@ -281,6 +331,8 @@ fn step_kernels() {
 // does no step at or after t_end (s): give the same t_end to each run of a
 // set-up. Returns the steps recorded, or 0 while two runs are not read back.
 export fn gpu_run(steps: i32, t_end: f64) -> i32 {
+    assert(pending >= 0 && pending <= 2);
+    assert(oldest == 0 || oldest == 1);
     if pending == 2 { return 0; }
     if gu[8] != t_end as f32 {
         gu[8] = t_end as f32;
@@ -307,6 +359,8 @@ export fn gpu_run(steps: i32, t_end: f64) -> i32 {
 // then this puts it in the globals of strike.goose and the history. 0 while
 // the GPU works or when no run is pending, -1 if the map or a read failed.
 export fn gpu_poll() -> i32 {
+    assert(pending >= 0 && pending <= 2);
+    assert(oldest == 0 || oldest == 1);
     if pending == 0 { return 0; }
     let rb = gbuf[B_READ + oldest];
     let state = gw_mapped(rb);
@@ -344,11 +398,35 @@ export fn gpu_poll() -> i32 {
 }
 
 // 0 when the GPU reached t_end
-export fn gpu_running() -> i32 { gs[17] as i32 }
+export fn gpu_running() -> i32 {
+    assert(pending >= 0);
+    assert(pending <= 2);
+    return gs[17] as i32;
+}
 // the runs that gpu_poll did not read back
-export fn gpu_pending() -> i32 { pending as i32 }
-export fn gpu_bird_ke() -> f64 { gs[19] }
-export fn gpu_panel_ke() -> f64 { gs[20] }
-export fn gpu_hist_cap() -> i32 { HIST_CAP }
+export fn gpu_pending() -> i32 {
+    assert(pending >= 0);
+    assert(pending <= 2);
+    return pending as i32;
+}
+export fn gpu_bird_ke() -> f64 {
+    assert(pending >= 0);
+    assert(pending <= 2);
+    return gs[19];
+}
+export fn gpu_panel_ke() -> f64 {
+    assert(pending >= 0);
+    assert(pending <= 2);
+    return gs[20];
+}
+export fn gpu_hist_cap() -> i32 {
+    assert(HIST_CAP > 0);
+    assert(HIST_CAP % 2 == 0);
+    return HIST_CAP;
+}
 // per step from the first: time, contact force, sensor force, max deflection
-export fn gpu_buf_hist() -> const u8[:] { bytes_of(ghist) }
+export fn gpu_buf_hist() -> const u8[:] {
+    assert(submitted >= 0);
+    assert(oldest >= 0);
+    return bytes_of(ghist);
+}

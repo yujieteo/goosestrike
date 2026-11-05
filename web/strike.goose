@@ -159,6 +159,8 @@ var r_eep: f32[MAXE];
 // mesh building
 
 fn add_node(x: f64, y: f64, z: f64, fix: bool, skin: bool) -> i64 {
+    assert(nn >= 0);
+    assert(abs(z) < 100.0);
     assert(nn < MAXN);
     let i = nn;
     nx[3 * i] = x; nx[3 * i + 1] = y; nx[3 * i + 2] = z;
@@ -169,6 +171,9 @@ fn add_node(x: f64, y: f64, z: f64, fix: bool, skin: bool) -> i64 {
 }
 
 fn add_elem(a: i64, b: i64, c: i64, d: i64, t: f64, m: i32) {
+    assert(a >= 0 && a < nn && b >= 0 && b < nn);
+    assert(c >= 0 && c < nn && d >= 0 && d < nn);
+    assert(t > 0.0);
     assert(ne < MAXE);
     en[4 * ne] = a as i32; en[4 * ne + 1] = b as i32;
     en[4 * ne + 2] = c as i32; en[4 * ne + 3] = d as i32;
@@ -180,29 +185,31 @@ fn add_elem(a: i64, b: i64, c: i64, d: i64, t: f64, m: i32) {
 // A point of the panel: x along the fuselage, s along the arc of the outer
 // skin, d inward from the skin. The outer normal at s = 0 is +z.
 fn panel_point(x: f64, s: f64, d: f64) -> f64, f64, f64 {
+    assert(d >= 0.0);
+    assert(R_FUS - d > 0.0);
     let r = R_FUS - d;
     let a = s / R_FUS;
     return x, r * sin(a), r * cos(a) - R_FUS;
 }
 
 fn node_at(x: f64, s: f64, d: f64, fix: bool, skin: bool) -> i64 {
+    assert(abs(d) < R_FUS);
+    assert(nn < MAXN);
     let a, b, c = panel_point(x, s, d);
     return add_node(a, b, c, fix, skin);
 }
 
 fn divisions(len: f64, h: f64) -> i64 {
+    assert(len > 0.0);
+    assert(h > 0.0);
     let k = (len / h + 0.5) as i64;
     return max(k, 1);
 }
 
-// Skin grid (gx x gs elements), four Z stringers, two Z frames. The edges
-// x = +-LX/2 and s = +-LS/2 lie on the neighbouring frames and stringers
-// and are clamped.
-fn build_panel(gx: i64, gs: i64) {
-    let dxe = PANEL_LX / gx;
-    let dse = PANEL_LS / gs;
-    let x0 = -0.5 * PANEL_LX;
-    let s0 = -0.5 * PANEL_LS;
+// The skin: a grid of gx x gs shells, x from x0 and s from s0.
+fn build_skin(gx: i64, gs: i64, dxe: f64, dse: f64, x0: f64, s0: f64) {
+    assert(gx >= 8 && gs >= 8);
+    assert(nn == 0 && ne == 0);
     for j in 0..gs + 1 {
         for i in 0..gx + 1 {
             let fix = i == 0 || i == gx || j == 0 || j == gs;
@@ -215,8 +222,14 @@ fn build_panel(gx: i64, gs: i64) {
             add_elem(a, a + 1, a + gx + 2, a + gx + 1, t_skin, 0);
         }
     }
-    let he = 0.5 * (dxe + dse);
-    // stringers at s = -3, -1, 1, 3 x LS/8; a Z: web, then a free flange
+    assert(nn == (gx + 1) * (gs + 1));
+    assert(ne == gx * gs);
+}
+
+// Stringers at s = -3, -1, 1, 3 x LS/8; a Z: web, then a free flange.
+fn build_stringers(gx: i64, gs: i64, dxe: f64, dse: f64, x0: f64, s0: f64, he: f64) {
+    assert(gx >= 8 && gs >= 8);
+    assert(he > 0.0);
     let nw = divisions(STR_H, he);
     let nfl = divisions(STR_F, he);
     for k in 0..4 {
@@ -241,7 +254,12 @@ fn build_panel(gx: i64, gs: i64) {
             }
         }
     }
-    // frames at x = -LX/4 and +LX/4; a Z: web, then an inner flange
+}
+
+// Frames at x = -LX/4 and +LX/4; a Z: web, then an inner flange.
+fn build_frames(gx: i64, gs: i64, dxe: f64, dse: f64, x0: f64, s0: f64, he: f64) {
+    assert(gx >= 8 && gs >= 8);
+    assert(he > 0.0);
     let nfw = divisions(FRM_H, he);
     let nff = divisions(FRM_F, he);
     for k in 0..2 {
@@ -269,8 +287,27 @@ fn build_panel(gx: i64, gs: i64) {
     }
 }
 
+// Skin grid (gx x gs elements), four Z stringers, two Z frames. The edges
+// x = +-LX/2 and s = +-LS/2 lie on the neighbouring frames and stringers
+// and are clamped.
+fn build_panel(gx: i64, gs: i64) {
+    assert(gx % 8 == 0 && gx >= 8);
+    assert(gs % 8 == 0 && gs >= 8);
+    let dxe = PANEL_LX / gx;
+    let dse = PANEL_LS / gs;
+    let x0 = -0.5 * PANEL_LX;
+    let s0 = -0.5 * PANEL_LS;
+    build_skin(gx, gs, dxe, dse, x0, s0);
+    let he = 0.5 * (dxe + dse);
+    build_stringers(gx, gs, dxe, dse, x0, s0, he);
+    build_frames(gx, gs, dxe, dse, x0, s0, he);
+    assert(nn <= MAXN && ne <= MAXE);
+}
+
 // Lumped translational masses and rotary inertias.
 fn lump_masses() {
+    assert(nn <= MAXN);
+    assert(ne <= MAXE);
     for i in 0..nn { nmass[i] = 0.0; ninert[i] = 0.0; }
     for e in 0..ne {
         let a = en[4 * e]; let b = en[4 * e + 1]; let c = en[4 * e + 2]; let d = en[4 * e + 3];
@@ -286,6 +323,8 @@ fn lump_masses() {
 }
 
 fn quad_area(a: i32, b: i32, c: i32, d: i32) -> f64 {
+    assert(a >= 0 && a < nn && b >= 0 && b < nn);
+    assert(c >= 0 && c < nn && d >= 0 && d < nn);
     // half the cross product of the diagonals
     let r1x = nx[3 * c] - nx[3 * a]; let r1y = nx[3 * c + 1] - nx[3 * a + 1]; let r1z = nx[3 * c + 2] - nx[3 * a + 2];
     let r2x = nx[3 * d] - nx[3 * b]; let r2y = nx[3 * d + 1] - nx[3 * b + 1]; let r2z = nx[3 * d + 2] - nx[3 * b + 2];
@@ -297,6 +336,8 @@ fn quad_area(a: i32, b: i32, c: i32, d: i32) -> f64 {
 // the bird
 
 fn inside_capsule(x: f64, y: f64, z: f64, r: f64, half: f64) -> bool {
+    assert(r > 0.0);
+    assert(half >= 0.0);
     let zc = clamp(z, -half, half);
     let dz = z - zc;
     return x * x + y * y + dz * dz <= r * r;
@@ -304,6 +345,8 @@ fn inside_capsule(x: f64, y: f64, z: f64, r: f64, half: f64) -> bool {
 
 // A capsule along z with its nose at z = nose_z, flying toward -z.
 fn build_bird(spacing: f64, speed: f64, nose_z: f64) {
+    assert(spacing > 0.0);
+    assert(speed >= 0.0);
     // L/D = 2 with hemispherical ends: volume = 5 pi D^3 / 12
     let vol = BIRD_MASS / RHO_BIRD;
     bird_d = pow(12.0 * vol / (5.0 * PI), 1.0 / 3.0);
@@ -346,11 +389,17 @@ fn build_bird(spacing: f64, speed: f64, nose_z: f64) {
 
 // The skin thickness of the next set-up, m. The stringers and frames keep
 // theirs.
-export fn set_skin(t: f64) { t_skin = t; }
+export fn set_skin(t: f64) {
+    assert(t > 0.0);
+    assert(t < 0.1);
+    t_skin = t;
+}
 
 // mode 0: the panel; mode 1: a rigid wall at z = 0.
 // cells: skin elements along x (a multiple of 8). spacing: bird lattice, m.
 export fn setup(m: i32, cells: i32, spacing: f64, speed: f64) -> i32 {
+    assert(m == 0 || m == 1);
+    assert(spacing > 0.0 && speed >= 0.0);
     for k in 0..2 {
         let ey = mat_sy[k] / mat_e[k];
         let eu = mat_el[k];
@@ -391,14 +440,22 @@ export fn setup(m: i32, cells: i32, spacing: f64, speed: f64) -> i32 {
 // neighbour search: a hashed grid with an exact-cell test, so that two
 // cells sharing a bucket are never visited twice
 
-fn cell_of(v: f64, size: f64) -> i64 { floor(v / size) as i64 }
+fn cell_of(v: f64, size: f64) -> i64 {
+    assert(size > 0.0);
+    assert(abs(v / size) < 1.0e12);
+    return floor(v / size) as i64;
+}
 
 fn hash3(i: i64, j: i64, k: i64) -> i64 {
+    assert(abs(i) < 1000000000000 && abs(j) < 1000000000000);
+    assert(abs(k) < 1000000000000);
     let h = (i * 73856093) ^ (j * 19349663) ^ (k * 83492791);
     return h % NHASH;
 }
 
 fn bin_particles() {
+    assert(np <= MAXP);
+    assert(ph > 0.0);
     let size = 2.0 * ph;
     for b in 0..NHASH { phead[b] = -1; }
     for i in 0..np {
@@ -416,6 +473,8 @@ fn bin_particles() {
 // SPH: continuity, Tait pressure, momentum with Monaghan viscosity
 
 fn sph_forces() {
+    assert(np <= MAXP);
+    assert(ph > 0.0 && pm > 0.0);
     let h = ph;
     let sigma = 1.0 / (PI * h * h * h);
     let h2 = 4.0 * h * h;
@@ -473,6 +532,8 @@ fn sph_forces() {
 }
 
 fn tait(rho: f64) -> f64 {
+    assert(rho > 0.0);
+    assert(rho < 100.0 * RHO_BIRD);
     let b = RHO_BIRD * C0_BIRD * C0_BIRD / GAMMA_TAIT;
     let x = rho / RHO_BIRD;
     let x2 = x * x;
@@ -487,6 +548,8 @@ fn tait(rho: f64) -> f64 {
 // Plane-stress J2 return (Simo and Taylor). s: trial stress (xx, yy, xy).
 // Returns the stress and the plastic strain increment.
 fn plane_stress_return(sxx: f64, syy: f64, sxy: f64, ep: f64, e: f64, nu: f64, sy0: f64, hh: f64) -> f64, f64, f64, f64 {
+    assert(e > 0.0 && sy0 > 0.0);
+    assert(nu > 0.0 && nu < 0.5);
     let a1 = sxx + syy;
     let a2 = sxx - syy;
     let a3 = sxy;
@@ -524,13 +587,11 @@ fn plane_stress_return(sxx: f64, syy: f64, sxy: f64, ep: f64, e: f64, nu: f64, s
     return 0.5 * (b1 + b2), 0.5 * (b1 - b2), a3 / d2, dep;
 }
 
-// Internal forces of one Belytschko-Lin-Tsay element, added to nf and nmo
-// with a minus sign. Updates the stresses with velocities v (n - 1/2).
-fn shell_element(e: i64, step_dt: f64) {
-    let n0 = en[4 * e] as i64; let n1 = en[4 * e + 1] as i64;
-    let n2 = en[4 * e + 2] as i64; let n3 = en[4 * e + 3] as i64;
-    var ids: i64[4] = [n0, n1, n2, n3];
-    // local frame from the diagonals
+// The local frame of an element from its diagonals: the unit vectors e1,
+// e2 and e3 (the normal), each as x, y, z.
+fn shell_frame(n0: i64, n1: i64, n2: i64, n3: i64) -> f64, f64, f64, f64, f64, f64, f64, f64, f64 {
+    assert(n0 >= 0 && n1 >= 0 && n2 >= 0 && n3 >= 0);
+    assert(n0 < nn && n1 < nn && n2 < nn && n3 < nn);
     let r31x = nx[3 * n2] - nx[3 * n0]; let r31y = nx[3 * n2 + 1] - nx[3 * n0 + 1]; let r31z = nx[3 * n2 + 2] - nx[3 * n0 + 2];
     let r42x = nx[3 * n3] - nx[3 * n1]; let r42y = nx[3 * n3 + 1] - nx[3 * n1 + 1]; let r42z = nx[3 * n3 + 2] - nx[3 * n1 + 2];
     var e3x = r31y * r42z - r31z * r42y; var e3y = r31z * r42x - r31x * r42z; var e3z = r31x * r42y - r31y * r42x;
@@ -542,17 +603,37 @@ fn shell_element(e: i64, step_dt: f64) {
     let l1 = sqrt(e1x * e1x + e1y * e1y + e1z * e1z);
     e1x /= l1; e1y /= l1; e1z /= l1;
     let e2x = e3y * e1z - e3z * e1y; let e2y = e3z * e1x - e3x * e1z; let e2z = e3x * e1y - e3y * e1x;
+    return e1x, e1y, e1z, e2x, e2y, e2z, e3x, e3y, e3z;
+}
+
+// The corner coordinates of an element in its frame (e1, e2), relative to
+// its centre.
+fn shell_coords(ids: i64[4], e1x: f64, e1y: f64, e1z: f64, e2x: f64, e2y: f64, e2z: f64) -> f64[4], f64[4] {
+    assert(ids[0] >= 0 && ids[3] < nn);
+    assert(ids[1] >= 0 && ids[2] < nn);
+    let n0 = ids[0]; let n1 = ids[1]; let n2 = ids[2]; let n3 = ids[3];
     let cx = 0.25 * (nx[3 * n0] + nx[3 * n1] + nx[3 * n2] + nx[3 * n3]);
     let cy = 0.25 * (nx[3 * n0 + 1] + nx[3 * n1 + 1] + nx[3 * n2 + 1] + nx[3 * n3 + 1]);
     let cz = 0.25 * (nx[3 * n0 + 2] + nx[3 * n1 + 2] + nx[3 * n2 + 2] + nx[3 * n3 + 2]);
     var xl: f64[4] = [0.0; 4]; var yl: f64[4] = [0.0; 4];
-    var vx: f64[4] = [0.0; 4]; var vy: f64[4] = [0.0; 4]; var vz: f64[4] = [0.0; 4];
-    var tx: f64[4] = [0.0; 4]; var ty: f64[4] = [0.0; 4];
     for k in 0..4 {
         let n = ids[k];
         let ddx = nx[3 * n] - cx; let ddy = nx[3 * n + 1] - cy; let ddz = nx[3 * n + 2] - cz;
         xl[k] = ddx * e1x + ddy * e1y + ddz * e1z;
         yl[k] = ddx * e2x + ddy * e2y + ddz * e2z;
+    }
+    return xl, yl;
+}
+
+// The corner velocities of an element in its frame: translations vx, vy,
+// vz and rotations tx, ty.
+fn shell_vels(ids: i64[4], e1x: f64, e1y: f64, e1z: f64, e2x: f64, e2y: f64, e2z: f64, e3x: f64, e3y: f64, e3z: f64) -> f64[4], f64[4], f64[4], f64[4], f64[4] {
+    assert(ids[0] >= 0 && ids[3] < nn);
+    assert(ids[1] >= 0 && ids[2] < nn);
+    var vx: f64[4] = [0.0; 4]; var vy: f64[4] = [0.0; 4]; var vz: f64[4] = [0.0; 4];
+    var tx: f64[4] = [0.0; 4]; var ty: f64[4] = [0.0; 4];
+    for k in 0..4 {
+        let n = ids[k];
         let ux = nv[3 * n]; let uy = nv[3 * n + 1]; let uz = nv[3 * n + 2];
         vx[k] = ux * e1x + uy * e1y + uz * e1z;
         vy[k] = ux * e2x + uy * e2y + uz * e2z;
@@ -561,11 +642,14 @@ fn shell_element(e: i64, step_dt: f64) {
         tx[k] = wx * e1x + wy * e1y + wz * e1z;
         ty[k] = wx * e2x + wy * e2y + wz * e2z;
     }
-    let area = 0.5 * ((xl[2] - xl[0]) * (yl[3] - yl[1]) + (xl[1] - xl[3]) * (yl[2] - yl[0]));
-    let inv2a = 0.5 / area;
-    var b1: f64[4] = [(yl[1] - yl[3]) * inv2a, (yl[2] - yl[0]) * inv2a, (yl[3] - yl[1]) * inv2a, (yl[0] - yl[2]) * inv2a];
-    var b2: f64[4] = [(xl[3] - xl[1]) * inv2a, (xl[0] - xl[2]) * inv2a, (xl[1] - xl[3]) * inv2a, (xl[2] - xl[0]) * inv2a];
-    // membrane, bending and transverse shear rates
+    return vx, vy, vz, tx, ty;
+}
+
+// The membrane, bending and transverse shear rates of an element from its
+// shape functions b1, b2 and corner velocities.
+fn shell_rates(b1: f64[4], b2: f64[4], vx: f64[4], vy: f64[4], vz: f64[4], tx: f64[4], ty: f64[4]) -> f64, f64, f64, f64, f64, f64, f64, f64 {
+    assert(abs(b1[0] + b1[1] + b1[2] + b1[3]) < 1.0e-6 * (abs(b1[0]) + 1.0));
+    assert(abs(b2[0] + b2[1] + b2[2] + b2[3]) < 1.0e-6 * (abs(b2[0]) + 1.0));
     var dxx = 0.0; var dyy = 0.0; var gxy = 0.0;
     var kxx = 0.0; var kyy = 0.0; var kxy = 0.0;
     var gxz = 0.0; var gyz = 0.0;
@@ -579,6 +663,15 @@ fn shell_element(e: i64, step_dt: f64) {
         gxz += b1[k] * vz[k] + 0.25 * ty[k];
         gyz += b2[k] * vz[k] - 0.25 * tx[k];
     }
+    return dxx, dyy, gxy, kxx, kyy, kxy, gxz, gyz;
+}
+
+// The stress update at the Gauss points through the thickness. Returns the
+// membrane forces nxx, nyy, nxy, the moments mxx, myy, mxy and the largest
+// plastic strain of the element.
+fn shell_stress(e: i64, step_dt: f64, dxx: f64, dyy: f64, gxy: f64, kxx: f64, kyy: f64, kxy: f64) -> f64, f64, f64, f64, f64, f64, f64 {
+    assert(e >= 0 && e < ne);
+    assert(step_dt > 0.0);
     let t = eth[e];
     let mi = emat[e];
     let em = mat_e[mi]; let nu = mat_nu[mi];
@@ -604,13 +697,19 @@ fn shell_element(e: i64, step_dt: f64) {
         nxx += w * sx; nyy += w * sy; nxy += w * sxy;
         mxx += w * z * sx; myy += w * z * sy; mxy += w * z * sxy;
     }
-    eepmax[e] = epm;
-    etau[2 * e] += KAPPA_S * gm * gxz * step_dt;
-    etau[2 * e + 1] += KAPPA_S * gm * gyz * step_dt;
-    let qx = t * etau[2 * e];
-    let qy = t * etau[2 * e + 1];
-    // internal work, for the energy balance
-    // hourglass control (Belytschko-Tsay), stiffness form
+    assert(epm >= 0.0);
+    return nxx, nyy, nxy, mxx, myy, mxy, epm;
+}
+
+// Hourglass control (Belytschko-Tsay), stiffness form: updates the
+// hourglass forces and moments of element e and the hourglass work. Returns
+// the hourglass shape vector.
+fn shell_hourglass(e: i64, step_dt: f64, area: f64, xl: f64[4], yl: f64[4], b1: f64[4], b2: f64[4],
+                   vx: f64[4], vy: f64[4], vz: f64[4], tx: f64[4], ty: f64[4]) -> f64[4] {
+    assert(e >= 0 && e < ne);
+    assert(emat[e] >= 0 && emat[e] < 2);
+    let t = eth[e];
+    let em = mat_e[emat[e]]; let gm = 0.5 * em / (1.0 + mat_nu[emat[e]]);
     let hx = xl[0] - xl[1] + xl[2] - xl[3];
     let hy = yl[0] - yl[1] + yl[2] - yl[3];
     var gam: f64[4] = [0.0; 4];
@@ -635,7 +734,17 @@ fn shell_element(e: i64, step_dt: f64) {
     ehg[h5 + 3] += cth * qtx * step_dt;
     ehg[h5 + 4] += cth * qty * step_dt;
     hg_work += step_dt * (ehg[h5] * qmx + ehg[h5 + 1] * qmy + ehg[h5 + 2] * qw + ehg[h5 + 3] * qtx + ehg[h5 + 4] * qty);
-    // local nodal forces and moments, then back to global
+    return gam;
+}
+
+// Adds the local nodal forces and moments of element e to nf and nmo, in the
+// global axes. The membrane forces, moments and shears are n*, m*, qx, qy.
+fn shell_scatter(e: i64, ids: i64[4], area: f64, b1: f64[4], b2: f64[4], gam: f64[4],
+                 nxx: f64, nyy: f64, nxy: f64, mxx: f64, myy: f64, mxy: f64, qx: f64, qy: f64,
+                 e1x: f64, e1y: f64, e1z: f64, e2x: f64, e2y: f64, e2z: f64, e3x: f64, e3y: f64, e3z: f64) {
+    assert(e >= 0 && e < ne);
+    assert(ids[0] >= 0 && ids[3] < nn);
+    let h5 = 5 * e;
     for k in 0..4 {
         let fx = area * (b1[k] * nxx + b2[k] * nxy) + gam[k] * ehg[h5];
         let fy = area * (b2[k] * nyy + b1[k] * nxy) + gam[k] * ehg[h5 + 1];
@@ -650,6 +759,35 @@ fn shell_element(e: i64, step_dt: f64) {
         nmo[3 * n + 1] -= mx * e1y + my * e2y;
         nmo[3 * n + 2] -= mx * e1z + my * e2z;
     }
+}
+
+// Internal forces of one Belytschko-Lin-Tsay element, added to nf and nmo
+// with a minus sign. Updates the stresses with velocities v (n - 1/2).
+fn shell_element(e: i64, step_dt: f64) {
+    assert(e >= 0 && e < ne);
+    assert(efail[e] == 0 && step_dt > 0.0);
+    let n0 = en[4 * e] as i64; let n1 = en[4 * e + 1] as i64;
+    let n2 = en[4 * e + 2] as i64; let n3 = en[4 * e + 3] as i64;
+    var ids: i64[4] = [n0, n1, n2, n3];
+    let e1x, e1y, e1z, e2x, e2y, e2z, e3x, e3y, e3z = shell_frame(n0, n1, n2, n3);
+    let xl, yl = shell_coords(ids, e1x, e1y, e1z, e2x, e2y, e2z);
+    let vx, vy, vz, tx, ty = shell_vels(ids, e1x, e1y, e1z, e2x, e2y, e2z, e3x, e3y, e3z);
+    let area = 0.5 * ((xl[2] - xl[0]) * (yl[3] - yl[1]) + (xl[1] - xl[3]) * (yl[2] - yl[0]));
+    let inv2a = 0.5 / area;
+    var b1: f64[4] = [(yl[1] - yl[3]) * inv2a, (yl[2] - yl[0]) * inv2a, (yl[3] - yl[1]) * inv2a, (yl[0] - yl[2]) * inv2a];
+    var b2: f64[4] = [(xl[3] - xl[1]) * inv2a, (xl[0] - xl[2]) * inv2a, (xl[1] - xl[3]) * inv2a, (xl[2] - xl[0]) * inv2a];
+    let dxx, dyy, gxy, kxx, kyy, kxy, gxz, gyz = shell_rates(b1, b2, vx, vy, vz, tx, ty);
+    let t = eth[e];
+    let mi = emat[e];
+    let gm = 0.5 * mat_e[mi] / (1.0 + mat_nu[mi]);
+    let nxx, nyy, nxy, mxx, myy, mxy, epm = shell_stress(e, step_dt, dxx, dyy, gxy, kxx, kyy, kxy);
+    eepmax[e] = epm;
+    etau[2 * e] += KAPPA_S * gm * gxz * step_dt;
+    etau[2 * e + 1] += KAPPA_S * gm * gyz * step_dt;
+    let qx = t * etau[2 * e];
+    let qy = t * etau[2 * e + 1];
+    let gam = shell_hourglass(e, step_dt, area, xl, yl, b1, b2, vx, vy, vz, tx, ty);
+    shell_scatter(e, ids, area, b1, b2, gam, nxx, nyy, nxy, mxx, myy, mxy, qx, qy, e1x, e1y, e1z, e2x, e2y, e2z, e3x, e3y, e3z);
     if epm >= mat_epf[mi] {
         efail[e] = 1;
         n_failed += 1;
@@ -658,6 +796,8 @@ fn shell_element(e: i64, step_dt: f64) {
 }
 
 fn shell_forces(step_dt: f64) {
+    assert(step_dt > 0.0);
+    assert(ne <= MAXE && nn <= MAXN);
     for i in 0..3 * nn { nf[i] = 0.0; nmo[i] = 0.0; }
     for e in 0..ne {
         if efail[e] == 0 { shell_element(e, step_dt); }
@@ -667,6 +807,8 @@ fn shell_forces(step_dt: f64) {
 // Stable time step of the shells: the smallest element over the plate
 // wave speed (area over the longest side as the element length).
 fn shell_dt() -> f64 {
+    assert(ne > 0);
+    assert(ne <= MAXE);
     var best = 1.0;
     for e in 0..ne {
         if efail[e] != 0 { continue; }
@@ -681,6 +823,8 @@ fn shell_dt() -> f64 {
 }
 
 fn dist(a: i32, b: i32) -> f64 {
+    assert(a >= 0 && a < nn);
+    assert(b >= 0 && b < nn);
     let dx = nx[3 * a] - nx[3 * b]; let dy = nx[3 * a + 1] - nx[3 * b + 1]; let dz = nx[3 * a + 2] - nx[3 * b + 2];
     return sqrt(dx * dx + dy * dy + dz * dz);
 }
@@ -691,6 +835,8 @@ fn dist(a: i32, b: i32) -> f64 {
 // Closest point of triangle abc to p (Ericson, Real-Time Collision
 // Detection, 5.1.5). Returns the barycentric weights of a, b and c.
 fn closest_tri(p: f64[3], a: f64[3], b: f64[3], c: f64[3]) -> f64, f64, f64 {
+    assert(abs(p[0]) < 1.0e9 && abs(p[2]) < 1.0e9);
+    assert(abs(a[0]) < 1.0e9 && abs(c[2]) < 1.0e9);
     let ab = b - a; let ac = c - a; let ap = p - a;
     let d1 = dot3(ab, ap); let d2 = dot3(ac, ap);
     if d1 <= 0.0 && d2 <= 0.0 { return 1.0, 0.0, 0.0; }
@@ -721,11 +867,21 @@ fn closest_tri(p: f64[3], a: f64[3], b: f64[3], c: f64[3]) -> f64, f64, f64 {
     return 1.0 - v - w, v, w;
 }
 
-fn dot3(a: f64[3], b: f64[3]) -> f64 { a[0] * b[0] + a[1] * b[1] + a[2] * b[2] }
+fn dot3(a: f64[3], b: f64[3]) -> f64 {
+    assert(abs(a[0]) < 1.0e150);
+    assert(abs(b[0]) < 1.0e150);
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
 
-fn node3(n: i64) -> f64[3] { [nx[3 * n], nx[3 * n + 1], nx[3 * n + 2]] }
+fn node3(n: i64) -> f64[3] {
+    assert(n >= 0);
+    assert(n < nn);
+    return [nx[3 * n], nx[3 * n + 1], nx[3 * n + 2]];
+}
 
 fn bin_elements() {
+    assert(ne <= MAXE);
+    assert(nn > 0);
     for b in 0..NHASH { ehead[b] = -1; }
     var rmax = 0.0;
     for e in 0..ne {
@@ -754,98 +910,132 @@ fn bin_elements() {
     }
 }
 
+// Contact against the rigid wall at z = 0 (mode 1).
+fn contact_wall(step_dt: f64) {
+    assert(step_dt > 0.0);
+    assert(mode == 1);
+    let k = K_CONTACT * pm / (step_dt * step_dt);
+    for i in 0..np {
+        let pen = prad - px[3 * i + 2];
+        if pen > 0.0 {
+            let f = k * pen;
+            pfc[3 * i + 2] = f;
+            contact_fz += f;
+            let rr = px[3 * i] * px[3 * i] + px[3 * i + 1] * px[3 * i + 1];
+            if rr < sensor_r * sensor_r { center_fz += f; }
+        }
+    }
+}
+
+// The penetration of the quad e by the point p, if it is the deepest so
+// far: the test against the triangles abc and acd. Returns whether bestd
+// improved, the new depth, the weights of the four corners and the closest
+// point.
+fn contact_quad(p: f64[3], e: i64, bestd: f64) -> bool, f64, f64[4], f64[3] {
+    assert(e >= 0 && e < ne);
+    assert(efail[e] == 0);
+    let gap = prad + 0.5 * eth[e];
+    let dc: f64[3] = [p[0] - ecen[3 * e], p[1] - ecen[3 * e + 1], p[2] - ecen[3 * e + 2]];
+    let lim = erad[e] + gap;
+    var bw: f64[4] = [0.0; 4];
+    var bq: f64[3] = [0.0; 3];
+    if dot3(dc, dc) >= lim * lim { return false, bestd, bw, bq; }
+    let a = node3(en[4 * e]); let b = node3(en[4 * e + 1]);
+    let c = node3(en[4 * e + 2]); let d = node3(en[4 * e + 3]);
+    let u1, v1, w1 = closest_tri(p, a, b, c);
+    let q1 = a * u1 + b * v1 + c * w1;
+    let u2, v2, w2 = closest_tri(p, a, c, d);
+    let q2 = a * u2 + c * v2 + d * w2;
+    let r1 = p - q1; let r2 = p - q2;
+    let s1 = dot3(r1, r1); let s2 = dot3(r2, r2);
+    let sd = min(s1, s2);
+    if sd < gap * gap && sqrt(sd) - gap < bestd {
+        if s1 <= s2 { bw = [u1, v1, w1, 0.0]; bq = q1; }
+        else { bw = [u2, 0.0, v2, w2]; bq = q2; }
+        return true, sqrt(sd) - gap, bw, bq;
+    }
+    return false, bestd, bw, bq;
+}
+
+// Applies the contact force of particle i on quad best, with penetration
+// pen and weights bw of the corners and closest point bq.
+fn contact_apply(i: i64, best: i64, pen: f64, bw: f64[4], bq: f64[3], step_dt: f64) {
+    assert(i >= 0 && i < np);
+    assert(best >= 0 && best < ne);
+    let p: f64[3] = [px[3 * i], px[3 * i + 1], px[3 * i + 2]];
+    var nrm = p - bq;
+    let ln = sqrt(dot3(nrm, nrm));
+    if ln < 1.0e-12 { return; }
+    nrm = nrm * (1.0 / ln);
+    // the reduced mass of the particle and the nodes it pushes
+    var mn = 0.0;
+    for k in 0..4 { mn += bw[k] * nmass[en[4 * best + k]]; }
+    let mr = pm * mn / (pm + mn);
+    let kk = K_CONTACT * mr / (step_dt * step_dt);
+    let f = kk * pen;
+    pfc[3 * i] = f * nrm[0]; pfc[3 * i + 1] = f * nrm[1]; pfc[3 * i + 2] = f * nrm[2];
+    contact_fz += f * nrm[2];
+    let rr = p[0] * p[0] + p[1] * p[1];
+    if rr < sensor_r * sensor_r { center_fz += f * nrm[2]; }
+    for k in 0..4 {
+        let n = en[4 * best + k] as i64;
+        nfc[3 * n] -= bw[k] * f * nrm[0];
+        nfc[3 * n + 1] -= bw[k] * f * nrm[1];
+        nfc[3 * n + 2] -= bw[k] * f * nrm[2];
+    }
+}
+
+// The contact of particle i with the panel: the deepest penetrated quad in
+// the 27 cells around the particle, and the force of it.
+fn contact_particle(i: i64, step_dt: f64) {
+    assert(i >= 0 && i < np);
+    assert(ecs > 0.0);
+    let p: f64[3] = [px[3 * i], px[3 * i + 1], px[3 * i + 2]];
+    let ci0 = cell_of(p[0], ecs); let cj0 = cell_of(p[1], ecs); let ck0 = cell_of(p[2], ecs);
+    var best = -1;
+    var bestd = 1.0e30;
+    var bw: f64[4] = [0.0; 4];
+    var bq: f64[3] = [0.0; 3];
+    for dk in -1..2 {
+        for dj in -1..2 {
+            for di in -1..2 {
+                let ci1 = ci0 + di; let cj1 = cj0 + dj; let ck1 = ck0 + dk;
+                var e = ehead[hash3(ci1, cj1, ck1)] as i64;
+                while e >= 0 {
+                    if ecell[3 * e] == ci1 && ecell[3 * e + 1] == cj1 && ecell[3 * e + 2] == ck1 {
+                        let better, d, w, q = contact_quad(p, e, bestd);
+                        if better { bestd = d; best = e; bw = w; bq = q; }
+                    }
+                    e = enext[e];
+                }
+            }
+        }
+    }
+    if best >= 0 { contact_apply(i, best, -bestd, bw, bq, step_dt); }
+}
+
 // Penalty contact: forces on the particles and on the shell nodes.
 fn contact(step_dt: f64) {
+    assert(step_dt > 0.0);
+    assert(np <= MAXP && nn <= MAXN);
     contact_fz = 0.0;
     center_fz = 0.0;
     for i in 0..3 * np { pfc[i] = 0.0; }
     for i in 0..3 * nn { nfc[i] = 0.0; }
     if mode == 1 {
-        let k = K_CONTACT * pm / (step_dt * step_dt);
-        for i in 0..np {
-            let pen = prad - px[3 * i + 2];
-            if pen > 0.0 {
-                let f = k * pen;
-                pfc[3 * i + 2] = f;
-                contact_fz += f;
-                let rr = px[3 * i] * px[3 * i] + px[3 * i + 1] * px[3 * i + 1];
-                if rr < sensor_r * sensor_r { center_fz += f; }
-            }
-        }
+        contact_wall(step_dt);
         return;
     }
     bin_elements();
-    for i in 0..np {
-        let p: f64[3] = [px[3 * i], px[3 * i + 1], px[3 * i + 2]];
-        let ci0 = cell_of(p[0], ecs); let cj0 = cell_of(p[1], ecs); let ck0 = cell_of(p[2], ecs);
-        var best = -1;
-        var bestd = 1.0e30;
-        var bw: f64[4] = [0.0; 4];
-        var bq: f64[3] = [0.0; 3];
-        for dk in -1..2 {
-            for dj in -1..2 {
-                for di in -1..2 {
-                    let ci1 = ci0 + di; let cj1 = cj0 + dj; let ck1 = ck0 + dk;
-                    var e = ehead[hash3(ci1, cj1, ck1)] as i64;
-                    while e >= 0 {
-                        if ecell[3 * e] == ci1 && ecell[3 * e + 1] == cj1 && ecell[3 * e + 2] == ck1 {
-                            let gap = prad + 0.5 * eth[e];
-                            let dc: f64[3] = [p[0] - ecen[3 * e], p[1] - ecen[3 * e + 1], p[2] - ecen[3 * e + 2]];
-                            let lim = erad[e] + gap;
-                            if dot3(dc, dc) < lim * lim {
-                                let a = node3(en[4 * e]); let b = node3(en[4 * e + 1]);
-                                let c = node3(en[4 * e + 2]); let d = node3(en[4 * e + 3]);
-                                // the quad as triangles abc and acd
-                                let u1, v1, w1 = closest_tri(p, a, b, c);
-                                let q1 = a * u1 + b * v1 + c * w1;
-                                let u2, v2, w2 = closest_tri(p, a, c, d);
-                                let q2 = a * u2 + c * v2 + d * w2;
-                                let r1 = p - q1; let r2 = p - q2;
-                                let s1 = dot3(r1, r1); let s2 = dot3(r2, r2);
-                                let sd = min(s1, s2);
-                                if sd < gap * gap && sqrt(sd) - gap < bestd {
-                                    bestd = sqrt(sd) - gap;
-                                    best = e;
-                                    if s1 <= s2 { bw = [u1, v1, w1, 0.0]; bq = q1; }
-                                    else { bw = [u2, 0.0, v2, w2]; bq = q2; }
-                                }
-                            }
-                        }
-                        e = enext[e];
-                    }
-                }
-            }
-        }
-        if best >= 0 {
-            let pen = -bestd;
-            var nrm = p - bq;
-            let ln = sqrt(dot3(nrm, nrm));
-            if ln < 1.0e-12 { continue; }
-            nrm = nrm * (1.0 / ln);
-            // the reduced mass of the particle and the nodes it pushes
-            var mn = 0.0;
-            for k in 0..4 { mn += bw[k] * nmass[en[4 * best + k]]; }
-            let mr = pm * mn / (pm + mn);
-            let kk = K_CONTACT * mr / (step_dt * step_dt);
-            let f = kk * pen;
-            pfc[3 * i] = f * nrm[0]; pfc[3 * i + 1] = f * nrm[1]; pfc[3 * i + 2] = f * nrm[2];
-            contact_fz += f * nrm[2];
-            let rr = p[0] * p[0] + p[1] * p[1];
-            if rr < sensor_r * sensor_r { center_fz += f * nrm[2]; }
-            for k in 0..4 {
-                let n = en[4 * best + k] as i64;
-                nfc[3 * n] -= bw[k] * f * nrm[0];
-                nfc[3 * n + 1] -= bw[k] * f * nrm[1];
-                nfc[3 * n + 2] -= bw[k] * f * nrm[2];
-            }
-        }
-    }
+    for i in 0..np { contact_particle(i, step_dt); }
 }
 
 // ---------------------------------------------------------------------------
 // the time step
 
 fn stable_dt() -> f64 {
+    assert(np > 0);
+    assert(pm > 0.0);
     var vmax = 0.0;
     for i in 0..np {
         let v2 = pv[3 * i] * pv[3 * i] + pv[3 * i + 1] * pv[3 * i + 1] + pv[3 * i + 2] * pv[3 * i + 2];
@@ -859,6 +1049,8 @@ fn stable_dt() -> f64 {
 // Central differences: velocities from v(n - 1/2) to v(n + 1/2), then
 // positions to x(n + 1), and the time.
 fn integrate() {
+    assert(pm > 0.0);
+    assert(dt > 0.0 && dtm > 0.0);
     // particles
     let ipm = 1.0 / pm;
     for i in 0..np {
@@ -909,6 +1101,8 @@ fn integrate() {
 // One phase of a time step. step_once runs the five in sequence. The page
 // runs them one at a time with step_phase, to show which one runs.
 fn run_phase(k: i64) {
+    assert(k >= 0);
+    assert(k < 5);
     if k == 0 {
         dt = stable_dt();
         // central differences: forces at x(n) from v(n - 1/2)
@@ -927,11 +1121,15 @@ fn run_phase(k: i64) {
 }
 
 fn step_once() {
+    assert(np > 0);
+    assert(sim_time >= 0.0);
     for k in 0..5 { run_phase(k); }
 }
 
 // Advances by up to `steps` steps, stopping at `t_end` (s).
 export fn advance(steps: i32, t_end: f64) -> i32 {
+    assert(steps >= 0);
+    assert(np > 0);
     var done: i32 = 0;
     while done < steps && sim_time < t_end {
         step_once();
@@ -943,6 +1141,8 @@ export fn advance(steps: i32, t_end: f64) -> i32 {
 // Runs the next phase of the current step and returns its number, or -1
 // when the step would start at or after `t_end` (s).
 export fn step_phase(t_end: f64) -> i32 {
+    assert(next_phase >= 0);
+    assert(next_phase < 5);
     if next_phase == 0 && sim_time >= t_end { return -1; }
     let k = next_phase;
     run_phase(k);
@@ -953,33 +1153,135 @@ export fn step_phase(t_end: f64) -> i32 {
 // ---------------------------------------------------------------------------
 // what the page and the validation read
 
-export fn get_time() -> f64 { sim_time }
-export fn get_dt() -> f64 { dt }
-export fn get_steps() -> i32 { nsteps as i32 }
-export fn get_t_contact() -> f64 { t_contact }
-export fn get_np() -> i32 { np as i32 }
-export fn get_nn() -> i32 { nn as i32 }
-export fn get_ne() -> i32 { ne as i32 }
-export fn get_particle_mass() -> f64 { pm }
-export fn get_spacing() -> f64 { pdx }
-export fn get_smoothing() -> f64 { ph }
-export fn get_bird_d() -> f64 { bird_d }
-export fn get_bird_l() -> f64 { bird_l }
-export fn get_bird_v() -> f64 { bird_v }
-export fn get_contact_force() -> f64 { contact_fz }
-export fn get_center_force() -> f64 { center_fz }
-export fn get_sensor_r() -> f64 { sensor_r }
-export fn get_impulse() -> f64 { impulse }
-export fn get_panel_work() -> f64 { panel_work }
-export fn get_hg_work() -> f64 { hg_work }
-export fn get_bird_work() -> f64 { bird_work }
-export fn get_failed() -> i32 { n_failed as i32 }
-export fn get_failed_skin() -> i32 { n_failed_skin as i32 }
-export fn get_max_ep() -> f64 { max_ep }
-export fn get_max_defl() -> f64 { max_defl }
-export fn get_eps_fail(m: i32) -> f64 { mat_epf[m] }
+export fn get_time() -> f64 {
+    assert(sim_time >= 0.0);
+    assert(nsteps >= 0);
+    return sim_time;
+}
+export fn get_dt() -> f64 {
+    assert(dt >= 0.0);
+    assert(dt < 1.0);
+    return dt;
+}
+export fn get_steps() -> i32 {
+    assert(nsteps >= 0);
+    assert(nsteps <= 2147483647);
+    return nsteps as i32;
+}
+export fn get_t_contact() -> f64 {
+    assert(t_contact >= -1.0);
+    assert(t_contact < 1.0e30);
+    return t_contact;
+}
+export fn get_np() -> i32 {
+    assert(np >= 0);
+    assert(np <= MAXP);
+    return np as i32;
+}
+export fn get_nn() -> i32 {
+    assert(nn >= 0);
+    assert(nn <= MAXN);
+    return nn as i32;
+}
+export fn get_ne() -> i32 {
+    assert(ne >= 0);
+    assert(ne <= MAXE);
+    return ne as i32;
+}
+export fn get_particle_mass() -> f64 {
+    assert(pm >= 0.0);
+    assert(pm <= BIRD_MASS);
+    return pm;
+}
+export fn get_spacing() -> f64 {
+    assert(pdx >= 0.0);
+    assert(pdx < 1.0);
+    return pdx;
+}
+export fn get_smoothing() -> f64 {
+    assert(ph >= 0.0);
+    assert(ph >= pdx);
+    return ph;
+}
+export fn get_bird_d() -> f64 {
+    assert(bird_d >= 0.0);
+    assert(bird_d < 1.0);
+    return bird_d;
+}
+export fn get_bird_l() -> f64 {
+    assert(bird_l >= bird_d);
+    assert(bird_l < 2.0);
+    return bird_l;
+}
+export fn get_bird_v() -> f64 {
+    assert(bird_v >= 0.0);
+    assert(bird_v < C0_BIRD);
+    return bird_v;
+}
+export fn get_contact_force() -> f64 {
+    assert(abs(contact_fz) < 1.0e18);
+    assert(np >= 0);
+    return contact_fz;
+}
+export fn get_center_force() -> f64 {
+    assert(abs(center_fz) < 1.0e18);
+    assert(np >= 0);
+    return center_fz;
+}
+export fn get_sensor_r() -> f64 {
+    assert(sensor_r >= 0.0);
+    assert(sensor_r <= bird_d);
+    return sensor_r;
+}
+export fn get_impulse() -> f64 {
+    assert(abs(impulse) < 1.0e18);
+    assert(nsteps >= 0);
+    return impulse;
+}
+export fn get_panel_work() -> f64 {
+    assert(abs(panel_work) < 1.0e18);
+    assert(ne >= 0);
+    return panel_work;
+}
+export fn get_hg_work() -> f64 {
+    assert(abs(hg_work) < 1.0e18);
+    assert(ne >= 0);
+    return hg_work;
+}
+export fn get_bird_work() -> f64 {
+    assert(abs(bird_work) < 1.0e18);
+    assert(np >= 0);
+    return bird_work;
+}
+export fn get_failed() -> i32 {
+    assert(n_failed >= 0);
+    assert(n_failed <= ne);
+    return n_failed as i32;
+}
+export fn get_failed_skin() -> i32 {
+    assert(n_failed_skin >= 0);
+    assert(n_failed_skin <= n_failed);
+    return n_failed_skin as i32;
+}
+export fn get_max_ep() -> f64 {
+    assert(max_ep >= 0.0);
+    assert(max_ep < 1.0e6);
+    return max_ep;
+}
+export fn get_max_defl() -> f64 {
+    assert(max_defl >= 0.0);
+    assert(max_defl < 1.0e6);
+    return max_defl;
+}
+export fn get_eps_fail(m: i32) -> f64 {
+    assert(m >= 0);
+    assert(m < 2);
+    return mat_epf[m];
+}
 
 export fn get_bird_ke() -> f64 {
+    assert(np >= 0);
+    assert(pm >= 0.0);
     var ke = 0.0;
     for i in 0..np {
         ke += 0.5 * pm * (pv[3 * i] * pv[3 * i] + pv[3 * i + 1] * pv[3 * i + 1] + pv[3 * i + 2] * pv[3 * i + 2]);
@@ -988,6 +1290,8 @@ export fn get_bird_ke() -> f64 {
 }
 
 export fn get_panel_ke() -> f64 {
+    assert(nn >= 0);
+    assert(nn <= MAXN);
     var ke = 0.0;
     for n in 0..nn {
         ke += 0.5 * nmass[n] * (nv[3 * n] * nv[3 * n] + nv[3 * n + 1] * nv[3 * n + 1] + nv[3 * n + 2] * nv[3 * n + 2]);
@@ -997,6 +1301,8 @@ export fn get_panel_ke() -> f64 {
 }
 
 export fn get_panel_mass() -> f64 {
+    assert(nn >= 0);
+    assert(nn <= MAXN);
     var m = 0.0;
     for n in 0..nn { m += nmass[n]; }
     return m;
@@ -1004,6 +1310,8 @@ export fn get_panel_mass() -> f64 {
 
 // Fills the f32 render buffers from the state.
 export fn fill_render() -> i32 {
+    assert(np <= MAXP && nn <= MAXN);
+    assert(ne <= MAXE);
     for i in 0..3 * nn { r_node[i] = nx[i] as f32; }
     for i in 0..3 * np { r_part[i] = px[i] as f32; }
     for i in 0..np { r_pp[i] = pp[i] as f32; }
@@ -1011,8 +1319,28 @@ export fn fill_render() -> i32 {
     return 1;
 }
 
-export fn buf_nodes() -> const u8[:] { bytes_of(r_node) }
-export fn buf_particles() -> const u8[:] { bytes_of(r_part) }
-export fn buf_pressure() -> const u8[:] { bytes_of(r_pp) }
-export fn buf_strain() -> const u8[:] { bytes_of(r_eep) }
-export fn buf_elements() -> const u8[:] { bytes_of(en) }
+export fn buf_nodes() -> const u8[:] {
+    assert(nn <= MAXN);
+    assert(nn >= 0);
+    return bytes_of(r_node);
+}
+export fn buf_particles() -> const u8[:] {
+    assert(np <= MAXP);
+    assert(np >= 0);
+    return bytes_of(r_part);
+}
+export fn buf_pressure() -> const u8[:] {
+    assert(np <= MAXP);
+    assert(np >= 0);
+    return bytes_of(r_pp);
+}
+export fn buf_strain() -> const u8[:] {
+    assert(ne <= MAXE);
+    assert(ne >= 0);
+    return bytes_of(r_eep);
+}
+export fn buf_elements() -> const u8[:] {
+    assert(ne <= MAXE);
+    assert(ne >= 0);
+    return bytes_of(en);
+}

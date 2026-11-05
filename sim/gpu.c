@@ -7,6 +7,7 @@
    nothing here waits for a promise. The one asynchronous call, the map
    of a read-back buffer, sets map_state of that buffer from its callback,
    and the page polls it. */
+#include <assert.h>
 #include <stdint.h>
 #include <string.h>
 #include <webgpu/webgpu.h>
@@ -35,11 +36,15 @@ static int map_state[MAXBUF];   /* 0: none or waiting, 1: mapped, -1: failed */
 static intptr_t setups; /* gw_reset calls: a map of an older set-up is stale */
 
 static WGPUStringView view(const uint8_t *s, int64_t n) {
+    assert(s != NULL || n == 0);
+    assert(n >= 0);
     WGPUStringView v = { (const char *)s, (size_t)n };
     return v;
 }
 
 int32_t gw_init(gw_bytes wgsl) {
+    assert(wgsl.len > 0);
+    assert(wgsl.data != NULL);
     device = emscripten_webgpu_get_device();
     if (!device) return 0;
     queue = wgpuDeviceGetQueue(device);
@@ -53,6 +58,8 @@ int32_t gw_init(gw_bytes wgsl) {
 
 /* a compute pipeline for one entry point, with the layout from the WGSL */
 int32_t gw_pipeline(gw_bytes entry) {
+    assert(entry.len > 0);
+    assert(module != NULL);
     if (npipe == MAXPIPE) return -1;
     WGPUComputePipelineDescriptor pd = WGPU_COMPUTE_PIPELINE_DESCRIPTOR_INIT;
     pd.compute.module = module;
@@ -63,6 +70,8 @@ int32_t gw_pipeline(gw_bytes entry) {
 
 /* Releases the buffers and bind groups of the last set-up. */
 void gw_reset(void) {
+    assert(ngroup >= 0 && ngroup <= MAXGROUP);
+    assert(nbuf >= 0 && nbuf <= MAXBUF);
     for (int i = 0; i < ngroup; i++) wgpuBindGroupRelease(groups[i]);
     for (int i = 0; i < nbuf; i++) { wgpuBufferDestroy(bufs[i]); wgpuBufferRelease(bufs[i]); }
     ngroup = 0;
@@ -75,6 +84,8 @@ void gw_reset(void) {
    An empty array (no panel in the wall run) still gets a buffer, of at
    least one element of the largest struct of the WGSL. */
 int32_t gw_buffer(int64_t size, int32_t kind) {
+    assert(kind >= 0 && kind <= 2);
+    assert(size >= 0);
     if (nbuf == MAXBUF) return -1;
     WGPUBufferDescriptor bd = WGPU_BUFFER_DESCRIPTOR_INIT;
     bd.size = (uint64_t)((size + 15) / 16 * 16);
@@ -87,11 +98,15 @@ int32_t gw_buffer(int64_t size, int32_t kind) {
 }
 
 void gw_write(int32_t buf, int64_t offset, gw_bytes data) {
+    assert(buf >= 0 && buf < nbuf);
+    assert(offset >= 0 && data.len >= 0);
     wgpuQueueWriteBuffer(queue, bufs[buf], (uint64_t)offset, data.data, (size_t)data.len);
 }
 
 /* A bind group for group 0 of a pipeline. pairs: (binding, buffer) ... */
 int32_t gw_bind(int32_t pipe, gw_ints pairs) {
+    assert(pipe >= 0 && pipe < npipe);
+    assert(pairs.len >= 0);
     if (ngroup == MAXGROUP || pairs.len > 2 * MAXENTRY) return -1;
     WGPUBindGroupEntry es[MAXENTRY];
     int n = (int)(pairs.len / 2);
@@ -111,6 +126,8 @@ int32_t gw_bind(int32_t pipe, gw_ints pairs) {
 }
 
 static void end_pass(void) {
+    assert(device != NULL);
+    assert(pass == NULL || enc != NULL);
     if (!pass) return;
     wgpuComputePassEncoderEnd(pass);
     wgpuComputePassEncoderRelease(pass);
@@ -120,6 +137,8 @@ static void end_pass(void) {
 /* Records a dispatch of `n` workgroups. Dispatches go into one compute
    pass, and each one sees the writes of the ones before it. */
 void gw_dispatch(int32_t pipe, int32_t group, int64_t n) {
+    assert(pipe >= 0 && pipe < npipe);
+    assert(group >= 0 && group < ngroup);
     if (!enc) enc = wgpuDeviceCreateCommandEncoder(device, NULL);
     if (!pass) pass = wgpuCommandEncoderBeginComputePass(enc, NULL);
     if (n <= 0) return;
@@ -129,12 +148,16 @@ void gw_dispatch(int32_t pipe, int32_t group, int64_t n) {
 }
 
 void gw_copy(int32_t src, int64_t src_off, int32_t dst, int64_t dst_off, int64_t size) {
+    assert(src >= 0 && src < nbuf && dst >= 0 && dst < nbuf);
+    assert(src_off >= 0 && dst_off >= 0);
     if (!enc) enc = wgpuDeviceCreateCommandEncoder(device, NULL);
     end_pass();
     if (size > 0) wgpuCommandEncoderCopyBufferToBuffer(enc, bufs[src], (uint64_t)src_off, bufs[dst], (uint64_t)dst_off, (uint64_t)size);
 }
 
 void gw_submit(void) {
+    assert(queue != NULL);
+    assert(pass == NULL || enc != NULL);
     if (!enc) return;
     end_pass();
     WGPUCommandBuffer cb = wgpuCommandEncoderFinish(enc, NULL);
@@ -146,12 +169,15 @@ void gw_submit(void) {
 
 static void mapped(WGPUMapAsyncStatus status, WGPUStringView message, void *u1, void *u2) {
     (void)message;
+    assert((intptr_t)u2 >= 0 && (intptr_t)u2 < MAXBUF);
     if ((intptr_t)u1 != setups) return;
     map_state[(intptr_t)u2] = status == WGPUMapAsyncStatus_Success ? 1 : -1;
 }
 
 /* Maps a read-back buffer after the work submitted so far. */
 void gw_map(int32_t buf) {
+    assert(buf >= 0 && buf < nbuf);
+    assert(map_state[buf] == 0 || map_state[buf] == 1 || map_state[buf] == -1);
     map_state[buf] = 0;
     WGPUBufferMapCallbackInfo ci = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
     ci.mode = WGPUCallbackMode_AllowSpontaneous;
@@ -161,14 +187,22 @@ void gw_map(int32_t buf) {
     wgpuBufferMapAsync(bufs[buf], WGPUMapMode_Read, 0, (size_t)wgpuBufferGetSize(bufs[buf]), ci);
 }
 
-int32_t gw_mapped(int32_t buf) { return map_state[buf]; }
+int32_t gw_mapped(int32_t buf) {
+    assert(buf >= 0 && buf < nbuf);
+    assert(map_state[buf] >= -1 && map_state[buf] <= 1);
+    return map_state[buf];
+}
 
 /* 1, or 0 if the read failed (an offset that is not a multiple of 8) */
 int32_t gw_read(int32_t buf, int64_t offset, gw_floats out) {
+    assert(buf >= 0 && buf < nbuf);
+    assert(offset >= 0 && out.len >= 0);
     return wgpuBufferReadMappedRange(bufs[buf], (size_t)offset, out.data, (size_t)out.len * sizeof(float)) == WGPUStatus_Success;
 }
 
 void gw_unmap(int32_t buf) {
+    assert(buf >= 0 && buf < nbuf);
+    assert(map_state[buf] == 1);
     wgpuBufferUnmap(bufs[buf]);
     map_state[buf] = 0;
 }
