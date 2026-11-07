@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
+import path from "node:path";
 import { BUNDLE, NONDETERMINISTIC_BANNED_IN, NONDETERMINISTIC_CALLS } from "./config.ts";
 import { checkComments, checkNondeterminism } from "./comments.ts";
 import { buildBundle } from "./bundle.ts";
@@ -10,7 +11,7 @@ import { cacheDir, replay } from "./replay.ts";
 import { checkShell } from "./shell.ts";
 import { checkAnalyzer, checkGeneratedWarnings } from "./cstatic.ts";
 
-const root = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
+const root = path.dirname(import.meta.dir);
 const accept = process.argv.includes("--accept");
 const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 

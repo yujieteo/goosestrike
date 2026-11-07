@@ -1,3 +1,4 @@
+import path from "node:path";
 import { BUNDLE } from "./config.ts";
 
 export function buildBundle(root: string, outfile: string): string[] {
@@ -6,6 +7,6 @@ export function buildBundle(root: string, outfile: string): string[] {
 }
 
 if (import.meta.main) {
-  const problems = buildBundle(new URL("..", import.meta.url).pathname, BUNDLE.outfile);
+  const problems = buildBundle(path.dirname(import.meta.dir), BUNDLE.outfile);
   if (problems.length) { console.error(problems.join("\n")); process.exit(1); }
 }
